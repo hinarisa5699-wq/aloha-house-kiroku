@@ -514,6 +514,19 @@ function dayactHtml(a){
   return t+l;
 }
 const dayactRow=x=>`<tr><td><input type="date" data-k="date" value="${esc(x.date||'')}" style="width:140px"></td><td><input data-k="act" value="${esc(x.act||'')}" placeholder="例：カラオケ、塗り絵、体操" style="min-width:160px"></td><td><input data-k="note" value="${esc(x.note||'')}" placeholder="様子・反応" style="min-width:180px"></td><td><button type="button" class="btn danger rDel" style="padding:2px 8px">×</button></td></tr>`;
+// 訪看 看護記録書Ⅰ・指示書（拡張機能がカイポケから取り込む。キー hncsheet）
+function hncsheetHtml(h){
+  if(!h) return ''; const o=h.order; const row=(k,v)=>v?`<div style="margin-top:3px"><b>${k}：</b>${nl(v)}</div>`:'';
+  let out=`<div class="muted" style="font-size:11.5px">${h.madeYmd?'看護記録書Ⅰ（ADL・看護等）作成 '+fmtD(h.madeYmd):'看護記録書Ⅰなし'}${h.updatedAt?'　取込 '+esc(String(h.updatedAt).slice(0,10)):''}</div>`;
+  if(o) out+=`<div style="margin-top:4px"><b>指示書：</b>${esc(fmtD(o.from))}〜${esc(fmtD(o.to))}　${esc(o.kind||'')}　<b>${esc(o.hospital)}</b> ${esc(o.doctor)}${o.hospitalTel?'　'+telLink(o.hospitalTel):''}<br><b>傷病名：</b>${esc((o.diseases||[]).join('、'))}</div>`;
+  const meds=h.meds||[];
+  if(meds.length) out+=`<div style="margin-top:6px"><b>薬剤（訪看の記録より）</b></div><table class="grid"><tr><th style="width:64px">区分</th><th>名称</th><th style="width:90px">量・数量</th><th>注意・補足</th></tr>${meds.map(m=>`<tr><td>${esc(m.kind)}</td><td class="l" style="white-space:normal">${esc(m.name)}</td><td>${esc(m.qty||'')}</td><td class="l" style="white-space:normal">${esc(m.guide||'')}</td></tr>`).join('')}</table>`;
+  out+=row('薬事特記事項',h.medicineComment)+row('服薬の状況',h.adl&&h.adl.medicine);
+  const a=h.adl||{}; const adl=[['食事',a.meal],['移動',a.move],['入浴',a.bath],['意思疎通',a.expression],['コミュニケーション',a.communication]].filter(x=>x[1]);
+  if(adl.length) out+=`<div style="margin-top:6px"><b>ADL・様子</b></div>`+adl.map(x=>`<div><b>${x[0]}：</b>${nl(x[1])}</div>`).join('');
+  out+=row('現病歴',h.historyPresent)+row('既往歴',h.historyPast)+row('療養状況',h.restCondition)+row('介護状況',h.nursingCondition)+row('家族構成',h.familyStructure)+row('住環境',h.housing);
+  return out;
+}
 function renderBase(){
   const r=cur(); if(!r){ $('#baseOut').innerHTML='<div class="card">入居者が登録されていません</div>'; return; }
   P.rid=r.id; const b=profOf(r.id,'basic')||{}; const fam=profOf(r.id,'family')||[]; const meds=profOf(r.id,'meds')||{times:{}}; const dis=profOf(r.id,'diseases')||[]; const bath=profOf(r.id,'bath')||{}; const tr=trainingOf(r); const cs=contactsOf(r.id);
@@ -522,12 +535,12 @@ function renderBase(){
   const disT=dis.length?`<table class="grid"><tr><th></th><th>傷病名</th><th>病院</th><th>医師</th><th>科</th><th>電話</th><th>受診</th></tr>${dis.map(d=>`<tr><td>${esc(d.type)}</td><td class="l" style="white-space:normal">${esc(d.name)}</td><td class="l">${esc(d.hospital)}</td><td>${esc(d.doctor)}</td><td>${esc(d.dept)}</td><td>${telLink(d.tel)}</td><td>${esc(d.status)}</td></tr>`).join('')}</table>`:'';
   const docs=cs.filter(c=>c['種別']==='主治医・病院');
   const disease=`<div><b>既往歴（要約）：</b>${r['既往歴']?esc(r['既往歴']):'<span class="muted">未登録</span>'}</div>${disT}<div style="margin-top:4px"><b>主治医：</b>${docs.length?docs.map(c=>`${esc(c['事業所'])}${c['担当者']?' '+esc(c['担当者']):''}${c['連絡先']?' '+telLink(c['連絡先']):''}${c['メモ']?'（'+esc(c['メモ'])+'）':''}`).join('／'):'<span class="muted">関係先に「主治医・病院」を登録すると表示</span>'}</div>${b.special?`<div class="muted" style="margin-top:4px">特記：${nl(b.special)}</div>`:''}`;
-  const medT=`<table class="grid"><tr>${TIMES.map(t=>`<th>${t}</th>`).join('')}</tr><tr>${TIMES.map(t=>`<td style="text-align:left;vertical-align:top;min-width:70px">${nl((meds.times||{})[t]||'')||'<span class="muted">—</span>'}</td>`).join('')}</tr></table><div class="muted">管理：${esc(meds.manage||'未設定')}${meds.note?'　'+nl(meds.note):''}</div>`;
+  const medT=(meds.source?`<div class="muted" style="font-size:11.5px">出所：${esc(meds.source)}（薬が変わったら訪看の記録書Ⅰが更新され、翌日反映）</div>`:'')+`<table class="grid"><tr>${TIMES.map(t=>`<th>${t}</th>`).join('')}</tr><tr>${TIMES.map(t=>`<td style="text-align:left;vertical-align:top;min-width:70px">${nl((meds.times||{})[t]||'')||'<span class="muted">—</span>'}</td>`).join('')}</tr></table><div class="muted">管理：${esc(meds.manage||'未設定')}${meds.note?'　'+nl(meds.note):''}</div>`;
   const famT=fam.length?`<table class="grid"><tr><th>氏名</th><th>続柄</th><th>年齢</th><th>同別居</th><th>電話</th><th>住所・メモ</th><th>緊急</th></tr>${fam.map(f=>`<tr><td class="l">${esc(f.name)}</td><td>${esc(f.rel)}</td><td>${esc(f.age)}</td><td>${esc(f.live)}</td><td>${telLink(f.tel)}</td><td class="l" style="white-space:normal">${esc([f.addr,f.note].filter(Boolean).join(' '))}</td><td>${f.emergency?'◎':''}</td></tr>`).join('')}</table>`:'<span class="muted">未登録</span>';
   const conT=cs.length?cs.map(c=>`<div class="ext" style="border-color:#1d6fb8;background:#eef4fb"><b>${esc(c['種別'])}</b> ${esc(c['事業所'])}${c['担当者']?'　'+esc(c['担当者']):''}${c['連絡先']?'　'+telLink(c['連絡先']):''}${c['メモ']?'<br><span class="m">'+esc(c['メモ'])+'</span>':''}</div>`).join(''):'<span class="muted">未登録</span>';
   const trV=tr?trainingView(tr,r,false)+(profOf(r.id,'training')?'':'<div class="muted">※ 9/19の個別機能訓練メニュー（Word）の内容を初期値として表示しています。「編集」→「保存」で確定します。</div>'):'<span class="muted">未登録（「編集」で作成）</span>';
   const lifeV=(b.life||b.current)?`${b.life?`<div><b>生活歴：</b>${nl(b.life)}</div>`:''}${b.current?`<div style="margin-top:4px"><b>入居前の生活・介護の状況：</b>${nl(b.current)}</div>`:''}`:'<span class="muted">未登録（アセスメントPDFを取り込むと入ります）</span>';
-  $('#baseOut').innerHTML=card('basic','基本情報',basic)+card('disease','既往歴・現病・主治医',disease)+(profOf(r.id,'dayplan')?card('dayplan','通所介護計画書（カイポケ）',dayplanHtml(profOf(r.id,'dayplan'),false),false):'')+card('vital','ふだんのバイタル・入浴の目安',`<div id="bStats"><span class="muted">集計中…</span></div><div style="margin-top:6px">${bathHtml(bath)}</div>`)+card('meds','服薬',medT)+card('family','ご家族・緊急連絡先',famT)+card('contacts','関係事業所・連絡先',conT)+card('training','個別機能訓練メニュー（20分）',trV)+card('dayact','デイサービスでの活動（好き・苦手・行った活動）',dayactHtml(profOf(r.id,'dayact')))+card('life','生活歴・入居前の状況',lifeV);
+  $('#baseOut').innerHTML=card('basic','基本情報',basic)+card('disease','既往歴・現病・主治医',disease)+(profOf(r.id,'hncsheet')?card('hncsheet','訪問看護の記録（看護記録書Ⅰ・指示書）',hncsheetHtml(profOf(r.id,'hncsheet')),false):'')+(profOf(r.id,'dayplan')?card('dayplan','通所介護計画書（カイポケ）',dayplanHtml(profOf(r.id,'dayplan'),false),false):'')+card('vital','ふだんのバイタル・入浴の目安',`<div id="bStats"><span class="muted">集計中…</span></div><div style="margin-top:6px">${bathHtml(bath)}</div>`)+card('meds','服薬',medT)+card('family','ご家族・緊急連絡先',famT)+card('contacts','関係事業所・連絡先',conT)+card('training','個別機能訓練メニュー（20分）',trV)+card('dayact','デイサービスでの活動（好き・苦手・行った活動）',dayactHtml(profOf(r.id,'dayact')))+card('life','生活歴・入居前の状況',lifeV);
   $$('#baseOut [data-edit]').forEach(btn=>btn.onclick=()=>openEdit(btn.dataset.edit));
   loadStats(r.id).then(st=>{ if(P.rid===r.id&&$('#bStats')) $('#bStats').innerHTML=statsHtml(st); });
 }
