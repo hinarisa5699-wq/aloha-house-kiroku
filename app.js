@@ -49,6 +49,10 @@ function dateLabel(s){const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/
 async function boot(){
   $('#cfgUrl').value=cfg.url; $('#cfgToken').value=cfg.token; $('#formsText').value=D.forms.join(',');
   if(!cfg.url){ $('#todayList').innerHTML='<div class="card">はじめに「設定」でGASのURLと合言葉を入れてください。</div>'; show('set'); return; }
+  if(!(+LS('hc_login')>Date.now())){ // ログイン（サーバ側でパスワード確認。未設定なら素通り）
+    try{ const r=await api('login',{pw:''}); if(r&&r.none){ LSs('hc_login',String(Date.now()+30*86400000)); } }catch(e){}
+    if(!(+LS('hc_login')>Date.now())){ $('#loginGate').classList.remove('hide'); $('#loginPw').focus(); return; }
+  }
   try{ busy(true); const b=await api('bootstrap'); D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); showAiStatus(); await loadDay(); }
   catch(e){ $('#todayList').innerHTML=`<div class="card">接続できません：${e.message}<br><span class="muted">設定を確認してください</span></div>`; }
   finally{ busy(false); }
@@ -397,6 +401,10 @@ async function loadExtList(){
 
 // ===== 設定 =====
 $('#cfgSave').onclick=async()=>{ cfg.url=$('#cfgUrl').value.trim(); cfg.token=$('#cfgToken').value.replace(/[\s\u3000]+/g,''); LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); $('#cfgStatus').textContent='接続中…'; try{ await api('ping'); $('#cfgStatus').textContent='接続OK'; await boot(); }catch(e){ $('#cfgStatus').textContent='接続できません: '+e.message; } };
+async function doLogin(){ const pw=$('#loginPw').value.trim(); if(!pw) return; $('#loginMsg').textContent='確認中…'; try{ const r=await api('login',{pw}); LSs('hc_login',String(r.until||Date.now()+30*86400000)); $('#loginGate').classList.add('hide'); $('#loginPw').value=''; $('#loginMsg').textContent=''; await boot(); }catch(e){ $('#loginMsg').textContent=e.message; } }
+$('#loginBtn').onclick=doLogin; $('#loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+$('#pwSave').onclick=async()=>{ const cur=$('#pwCur').value, nw=$('#pwNew').value.trim(); if(nw.length<6) return toast('6文字以上にしてください'); try{ busy(true); await api('setLoginPassword',{current:cur,pw:nw}); $('#pwStatus').textContent='変更しました。他の端末は次に開くとき新しいパスワードが必要です'; $('#pwCur').value=''; $('#pwNew').value=''; }catch(e){ $('#pwStatus').textContent='変更できません: '+e.message; } finally{ busy(false); } };
+$('#logoutBtn').onclick=()=>{ localStorage.removeItem('hc_login'); location.reload(); };
 $('#cfgLink').onclick=async()=>{ const c={url:$('#cfgUrl').value.trim(),token:$('#cfgToken').value}; if(!c.url) return toast('先にURLを入れてください'); const link=location.origin+location.pathname+'#s='+encCfg(c); try{ await navigator.clipboard.writeText(link); $('#cfgStatus').textContent='設定リンクをコピーしました（LINEやメールで自分に送って、他の端末で開いてください）'; }catch(e){ prompt('このリンクをコピーしてください',link); } };
 $('#formsText').onchange=()=>{ D.forms=$('#formsText').value.split(/[,、，]/).map(s=>s.trim()).filter(Boolean); LSs('hc_forms',D.forms.join(',')); renderStaffSel(); };
 let editRes=[];
