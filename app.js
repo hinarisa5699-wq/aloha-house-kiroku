@@ -174,11 +174,14 @@ $('#saveMeal').onclick=async()=>{
   catch(e){ toast('保存失敗: '+e.message); } finally{ busy(false); $('#saveMeal').disabled=false; }
 };
 $('#delMeal').onclick=async()=>{ const r=D.cur; const m=mealOf(r.id,D.meal); if(!m||!confirm(`${r['氏名']} ${D.meal}の記録を消しますか？`)) return; try{ await api('saveMeal',{record:{...m,_delete:true}}); D.day.meals=D.day.meals.filter(x=>x.id!==m.id); renderEntry(); renderToday(); toast('消しました'); }catch(e){toast('失敗: '+e.message);} };
-function renderNotes(){ const r=D.cur; const list=D.day.notes.filter(n=>n['利用者ID']===r.id).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||'')); $('#noteList').innerHTML=list.map(n=>`<div class="n"><div class="m">${n['時刻']||''} ${esc(n['種別'])}　${esc(n['記入者'])} <button class="btn danger" data-del="${n.id}" style="padding:1px 8px;font-size:11px;float:right">削除</button></div>${esc(n['内容'])}</div>`).join(''); $$('#noteList [data-del]').forEach(b=>b.onclick=async()=>{ if(!confirm('削除しますか？')) return; await api('saveNote',{record:{id:b.dataset.del,_delete:true}}); D.day.notes=D.day.notes.filter(n=>n.id!==b.dataset.del); renderNotes(); renderToday(); }); }
+function renderNotes(){ const r=D.cur; const list=D.day.notes.filter(n=>n['利用者ID']===r.id).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||'')); $('#noteList').innerHTML=list.map(n=>`<div class="n"><div class="m">${n['時刻']||''} ${esc(n['種別'])}　${esc(n['記入者'])} <button class="btn danger" data-del="${n.id}" style="padding:1px 8px;font-size:11px;float:right">削除</button></div>${esc(n['内容'])}</div>`).join(''); $$('#noteList [data-del]').forEach(b=>b.onclick=async()=>{ if(!confirm('削除しますか？')) return; await api('saveNote',{record:{id:b.dataset.del,_delete:true}}); api('saveDiary',{record:{id:'n-'+b.dataset.del,_delete:true}}).catch(()=>{}); D.day.notes=D.day.notes.filter(n=>n.id!==b.dataset.del); renderNotes(); renderToday(); }); }
 $('#saveNote').onclick=async()=>{
   const r=D.cur; const text=$('#nText').value.trim(); if(!text) return toast('内容を入れてください'); const staff=$('#staff').value; if(!staff) return toast('記入者を選んでください'); LSs('hc_staff',staff);
   const rec={'日付':D.date,'時刻':$('#nTime').value||`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`,'利用者ID':r.id,'氏名':r['氏名'],'種別':$('#nKind').value,'内容':text,'記入者':staff};
-  try{ busy(true); const saved=await api('saveNote',{record:rec}); D.day.notes.push(saved); $('#nText').value=''; $('#nTime').value=''; renderNotes(); renderToday(); toast('追加しました'); }catch(e){toast('失敗: '+e.message);} finally{busy(false);}
+  try{ busy(true); const saved=await api('saveNote',{record:rec}); D.day.notes.push(saved); $('#nText').value=''; $('#nTime').value=''; renderNotes(); renderToday(); toast('追加しました（日誌にも記録）');
+    // 様子・特記はそのまま個人日誌にも載せる（id を n-様子ID にして、様子を消したら日誌も消えるようにする）
+    api('saveDiary',{record:{id:'n-'+saved.id,'日付':rec['日付'],'時刻':rec['時刻'],'利用者ID':rec['利用者ID'],'氏名':rec['氏名'],'種別':rec['種別'],'内容':rec['内容'],'記入者':staff,'出所':'様子記録'}}).catch(()=>{});
+  }catch(e){toast('失敗: '+e.message);} finally{busy(false);}
 };
 
 // ===== 日誌 =====
