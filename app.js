@@ -73,9 +73,20 @@ function chip(m){
   const c=sym?'sym':(st<=5||sd<=5)?'low':'done';
   return `<span class="chip ${c}">${m['主食']}/${m['副食']}</span>`;
 }
+// 今日の予定（全員分を時刻順に一覧）
+function renderTodaySch(){
+  const el=$('#todaySch'); if(!el) return;
+  const ids=new Set(D.residents.map(r=>r.id)); const nm=Object.fromEntries(D.residents.map(r=>[r.id,r]));
+  const list=(D.day.schedules||[]).filter(s=>ids.has(s['利用者ID'])).sort((a,b)=>((a['開始']||'99:99').localeCompare(b['開始']||'99:99'))||String(nm[a['利用者ID']]['部屋']).localeCompare(String(nm[b['利用者ID']]['部屋'])));
+  if(!list.length){ el.innerHTML='<span class="muted">予定なし</span>'; return; }
+  const body=(s)=>{ const c=s['内容']||''; return (c.startsWith(s['種別'])||c.includes(s['種別']))?c:(s['種別']+(c?' '+c:'')); };
+  el.innerHTML='<table class="grid" style="width:100%;font-size:13px"><tr><th style="width:92px">時間</th><th style="width:34px">部屋</th><th style="width:110px">氏名</th><th style="text-align:left">予定</th><th style="width:70px">担当</th></tr>'+list.map(s=>{ const r=nm[s['利用者ID']]; return `<tr class="sch-row" data-id="${r.id}" style="cursor:pointer"><td>${s['開始']||''}${s['終了']?'-'+s['終了']:''}</td><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td style="text-align:left"><span class="sch ${schCls(s)}">${esc(body(s))}</span></td><td>${esc(s['担当']||'')}</td></tr>`; }).join('')+'</table>';
+  $$('#todaySch .sch-row').forEach(tr=>tr.onclick=()=>openEntry(tr.dataset.id));
+}
 function renderToday(){
   $('#ttl').textContent=`入居者記録 ${dateLabel(D.date)}`;
   if(!D.residents.length){ $('#todayList').innerHTML='<div class="card">入居者が登録されていません。「設定」から登録してください。</div>'; return; }
+  renderTodaySch();
   $('#todayList').innerHTML=D.residents.map(r=>{
     const sch=schOf(r.id); const notes=D.day.notes.filter(n=>n['利用者ID']===r.id).length; const nx=extOf(r.id).length;
     return `<div class="res" data-id="${r.id}"><div class="room">${esc(r['部屋'])}</div><div class="nm">${esc(r['氏名'])}<small>${esc(sch.map(s=>fmtSch(s)).join('／'))}${notes?`　様子${notes}件`:''}${nx?`　記録${nx}件`:''}</small></div><div class="chips">${['朝食','昼食','夕食'].map(m=>chip(mealOf(r.id,m))).join('')}</div></div>`;
