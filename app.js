@@ -79,7 +79,8 @@ function chip(m){
 function renderTodaySch(){
   const el=$('#todaySch'); if(!el) return;
   const ids=new Set(D.residents.map(r=>r.id)); const nm=Object.fromEntries(D.residents.map(r=>[r.id,r]));
-  const list=(D.day.schedules||[]).filter(s=>ids.has(s['利用者ID'])).sort((a,b)=>((a['開始']||'99:99').localeCompare(b['開始']||'99:99'))||String(nm[a['利用者ID']]['部屋']).localeCompare(String(nm[b['利用者ID']]['部屋'])));
+  const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
+  const list=(D.day.schedules||[]).filter(s=>ids.has(s['利用者ID'])).sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始']))||String(nm[a['利用者ID']]['部屋']).localeCompare(String(nm[b['利用者ID']]['部屋'])));
   if(!list.length){ el.innerHTML='<span class="muted">予定なし</span>'; return; }
   const body=(s)=>{ const c=s['内容']||''; return (c.startsWith(s['種別'])||c.includes(s['種別']))?c:(s['種別']+(c?' '+c:'')); };
   el.innerHTML='<table class="grid" style="width:100%;font-size:13px"><tr><th style="width:92px">時間</th><th style="width:34px">部屋</th><th style="width:110px">氏名</th><th style="text-align:left">予定</th><th style="width:70px">担当</th></tr>'+list.map(s=>{ const r=nm[s['利用者ID']]; return `<tr class="sch-row" data-id="${r.id}" style="cursor:pointer"><td>${s['開始']||''}${s['終了']?'-'+s['終了']:''}</td><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td style="text-align:left"><span class="sch ${schCls(s)}">${esc(body(s))}</span></td><td>${esc(s['担当']||'')}</td></tr>`; }).join('')+'</table>';
