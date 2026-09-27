@@ -53,12 +53,15 @@ async function boot(){
     try{ const r=await api('login',{pw:''}); if(r&&r.none){ LSs('hc_login',String(Date.now()+30*86400000)); } }catch(e){}
     if(!(+LS('hc_login')>Date.now())){ $('#loginGate').classList.remove('hide'); $('#loginPw').focus(); return; }
   }
-  try{ busy(true); const b=await api('bootstrap'); D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); showAiStatus(); await loadDay(); }
+  // 前回の内容をまず表示（開き直したときに「読み込み中」で待たせない）。そのあと裏で最新に更新
+  const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); };
+  try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=JSON.parse(LS('hc_cache_day')||'null'); if(cb&&cb.residents){ applyBoot(cb); if(cd&&cd.date===D.date&&cd.data){ D.day=cd.data; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
+  try{ busy(true); const b=await api('bootstrap'); applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); await loadDay(); }
   catch(e){ $('#todayList').innerHTML=`<div class="card">接続できません：${e.message}<br><span class="muted">設定を確認してください</span></div>`; }
   finally{ busy(false); }
 }
 async function loadDay(){
-  try{ busy(true); D.day=await api('day',{date:D.date}); renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); }
+  try{ busy(true); const d=await api('day',{date:D.date}); D.day=d; LSs('hc_cache_day',JSON.stringify({date:D.date,data:d})); renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); }
   catch(e){ toast('読み込み失敗: '+e.message); } finally{ busy(false); }
 }
 const mealOf=(rid,meal)=>D.day.meals.find(m=>m['利用者ID']===rid&&m['食事']===meal);
@@ -243,7 +246,7 @@ async function renderList(){
       h+=days.map(d=>`<th class="${d.getDay()===0?'sun':d.getDay()===6?'sat':''}">${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）</th>`).join('')+'</tr></thead><tbody><tr>';
       for(const d of days){ const ds=fmt(d); const evs=list.filter(x=>x['日付']===ds).sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始'])));
         h+=`<td class="${ds===todayStr()?'today':''}">`+evs.map(e=>`<div class="ev ${schCls(e)}"><span class="t">${e['開始']||''}${e['終了']?'-'+e['終了']:''}</span>${esc(e['開始']?fmtSch(e).replace(/^\S+\s/,''):fmtSch(e))}</div>`).join('')+'</td>'; }
-      out.innerHTML=h+'</tr></tbody></table><div class="legend">「今日の食事量」タブの日付を動かすと週が変わります。印刷は右上の「印刷」。</div></div>';
+      out.innerHTML=h+'</tr></tbody></table><div class="legend">「今日の予定/食事」タブの日付を動かすと週が変わります。印刷は右上の「印刷」。</div></div>';
     }catch(e){ out.innerHTML='読み込み失敗: '+esc(e.message); }
   } else if(mode==='cal'||mode==='calall'){
     const ym=D.date.slice(0,7); const [y,mo]=ym.split('-').map(Number); const days=new Date(y,mo,0).getDate();
