@@ -219,3 +219,75 @@ async function parseDayPdf(pdfDoc){
   return {users:[...users], rows};
 }
 
+
+// ===== 4. カイポケ 簡易版アセスメントシート PDF =====
+// 戻り値: {name, kana, sex, birth:'YYYY-MM-DD', age, room, tel, family:[{name,rel,age,live,note,tel,addr,emergency}],
+//          care:{level, certDate, from, to, insuredNo, medical}, services:[{kind,office}], diseases:[{type,name,hospital,doctor,dept,tel,status}],
+//          meds:'', special:'', life:'', current:''}
+function warekiDate(s){ const m=String(s||'').match(/(令和|平成|昭和|大正)\s*(\d+)年\s*(\d+)月\s*(\d+)日/); if(!m) return ''; const base={'令和':2018,'平成':1988,'昭和':1925,'大正':1911}[m[1]]; return `${base+parseInt(m[2],10)}-${String(+m[3]).padStart(2,'0')}-${String(+m[4]).padStart(2,'0')}`; }
+async function parseAssessmentPdf(pdfDoc){
+  const out={name:'',kana:'',sex:'',birth:'',age:'',room:'',tel:'',family:[],care:{},services:[],diseases:[],meds:'',special:'',life:'',current:''};
+  const pages=[];
+  for(let p=1;p<=pdfDoc.numPages;p++){ const page=await pdfDoc.getPage(p); pages.push(await pageItems(page)); }
+  const all=pages.flat(); const txt=all.map(i=>i.s).join(' ');
+  const find=(items,re)=>items.find(i=>re.test(i.s));
+  const lineOf=(items,y,tol)=>items.filter(i=>Math.abs(i.y-y)<=(tol||3)).sort((a,b)=>a.x-b.x);
+  // --- 基本 ---
+  const p1=pages[0]||[];
+  const kana=find(p1,/^フリガナ$/); if(kana){ out.kana=lineOf(p1,kana.y).filter(i=>i.x>kana.x+20).map(i=>i.s).join(' ').trim(); }
+  const bd=find(p1,/生年月日/); if(bd){ const L=lineOf(p1,bd.y); const v=L.filter(i=>i.x>bd.x+20).map(i=>i.s).join(' '); out.birth=warekiDate(v); const a=v.match(/(\d+)\s*才/); if(a) out.age=a[1]; const sx=L.find(i=>/^[男女]$/.test(i.s)); if(sx) out.sex=sx.s; }
+  const nm=find(p1,/^利用者氏名$/); if(nm){ const cand=p1.filter(i=>i.x>nm.x+40&&i.x<300&&i.y<nm.y+12&&i.y>nm.y-14&&!/生年月日|男|女/.test(i.s)); out.name=cand.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ').trim(); }
+  const rm=txt.match(/アロハハウス\s*(\d{3})\s*号/); if(rm) out.room=rm[1];
+  const tl=find(p1,/^電話番号$/); if(tl&&tl.x<80){ const v=lineOf(p1,tl.y).find(i=>i.x>tl.x+20&&/\d{2,4}-?\d{2,4}-?\d{3,4}/.test(i.s)); if(v) out.tel=v.s.trim(); }
+  // --- 家族構成 / 緊急連絡先 ---
+  const heads=p1.filter(i=>i.s==='続柄').map(i=>i.y).sort((a,b)=>b-a); // 上が家族、下が緊急連絡先
+  const famHead=heads[0], emHead=heads[1];
+  const stopY=(find(p1,/これまでの職業/)||{y:0}).y;
+  const rowsBetween=(top,bottom)=>{ const its=p1.filter(i=>i.y<top-4&&i.y>bottom+4&&i.x>=95); const lines=groupLines(its,4); return lines; };
+  const cols=(L,xs)=>{ const o=xs.map(()=>[]); for(const it of L.items){ let k=0; for(let j=0;j<xs.length;j++){ if(it.x>=xs[j]-6) k=j; } o[k].push(it.s); } return o.map(a=>a.join(' ').trim()); };
+  const mergeRows=(lines,xs)=>{ const rows=lines.map(L=>({y:L.y,c:cols(L,xs)})); const anchors=rows.filter(r=>r.c[0]); for(const r of rows){ if(r.c[0]) continue; let best=null; for(const a of anchors){ if(!best||Math.abs(a.y-r.y)<Math.abs(best.y-r.y)) best=a; } if(!best||Math.abs(best.y-r.y)>16) continue; r.c.forEach((v,k)=>{ if(!v) return; best.c[k]=r.y>best.y?(v+best.c[k]):(best.c[k]+v); }); } return anchors.map(a=>a.c); };
+  if(famHead){
+    for(const [name,rel,age,live,note] of mergeRows(rowsBetween(famHead, emHead||stopY),[95,222,258,310,430])){ if(!name) continue; out.family.push({name:name.replace(/\s+/g,' '),rel,age:age.replace(/[^\d]/g,''),live,note,tel:'',addr:'',emergency:false}); }
+  }
+  if(emHead){
+    for(const [name,rel,addr,tel] of mergeRows(rowsBetween(emHead, stopY),[95,222,258,460])){ if(!name) continue;
+      const key=name.replace(/[\s　]/g,''); const f=out.family.find(x=>x.name.replace(/[\s　]/g,'')===key);
+      if(f){ f.tel=tel; f.addr=addr; f.emergency=true; if(!f.rel) f.rel=rel; } else out.family.push({name,rel,age:'',live:'',note:'',tel,addr,emergency:true}); }
+  }
+  // --- 認定情報 ---
+  const lv=txt.match(/(要介護\s*[１-５1-5]|要支援\s*[１-２1-2]|事業対象者)/); if(lv) out.care.level=zen2han(lv[1].replace(/\s/g,''));
+  const cd=txt.match(/認定年月日\s*((?:令和|平成)\s*\d+年\s*\d+月\s*\d+日)/); if(cd) out.care.certDate=warekiDate(cd[1]);
+  const pr=txt.match(/認定期間\s*((?:令和|平成)\s*\d+年\s*\d+月\s*\d+日)\s*[〜～]\s*((?:令和|平成)\s*\d+年\s*\d+月\s*\d+日)/); if(pr){ out.care.from=warekiDate(pr[1]); out.care.to=warekiDate(pr[2]); }
+  const ins=txt.match(/被保険者番号\s*(\d{8,12})/); if(ins) out.care.insuredNo=ins[1];
+  const md=all.find(i=>i.s==='医療保険'); if(md){ const L=lineOf(pages.find(pg=>pg.includes(md)),md.y); const v=L.find(i=>i.x>md.x+30); if(v) out.care.medical=v.s.trim(); }
+  const jr=txt.match(/障害高齢者の\s*日常生活自立度\s*([ＪJＡAＢBＣC][１-２1-2]?)/); // 位置依存なので簡易
+  // --- 利用サービス ---
+  const KINDS=/^(居宅介護支援|訪問介護|訪問看護|訪問入浴|訪問リハ|通所介護|通所リハ|地域密着型通所介護|福祉用具貸与|特定福祉用具|短期入所|居宅療養管理|小規模多機能|定期巡回|夜間対応|認知症対応型|介護予防[^\s]*)/;
+  for(const pg of pages){ const h=pg.find(i=>i.s==='サービス種別'); if(!h) continue; const end=(pg.filter(i=>i.y<h.y-4&&/課題分析|利用者の|望む生活|家族の/.test(i.s)).sort((a,b)=>b.y-a.y)[0]||{y:h.y-80}).y;
+    const its=pg.filter(i=>i.y<h.y-4&&i.y>end&&i.x>=95); const lines=groupLines(its,4); const ents=[]; const orphans=[];
+    for(const L of lines){ for(const side of ['L','R']){ const part=L.items.filter(i=>side==='L'?i.x<310:i.x>=310); if(!part.length) continue; const k=part.find(i=>KINDS.test(i.s));
+      if(k) ents.push({kind:k.s,office:part.filter(i=>i!==k).map(i=>i.s).join(''),side,y:L.y}); else orphans.push({side,y:L.y,t:part.map(i=>i.s).join('')}); } }
+    for(const o of orphans){ let best=null; for(const e of ents){ if(e.side!==o.side) continue; if(!best||Math.abs(e.y-o.y)<Math.abs(best.y-o.y)) best=e; } if(best&&Math.abs(best.y-o.y)<=14){ best.office=o.y>best.y?o.t+best.office:best.office+o.t; } }
+    out.services.push(...ents);
+  }
+  out.services.forEach(s=>{ delete s.side; delete s.y; s.office=s.office.replace(/\s+/g,''); });
+  // --- 既往/現病 ---
+  for(const pg of pages){ const h=pg.find(i=>i.s==='既往/現病'); if(!h) continue; const H=lineOf(pg,h.y); const xs=['傷病名','病院名','医師名','診療科目','電話番号','受診状況'].map(k=>(H.find(i=>i.s===k)||{}).x||0);
+    const end=(pg.find(i=>i.s==='傷病名'&&i.y<h.y-20)||{y:h.y-150}).y;
+    const region=pg.filter(i=>i.y<h.y-4&&i.y>end+4&&i.x>=95); const labels=region.filter(i=>/^(既往|現病)$/.test(i.s)&&i.x<130);
+    const recs=labels.map(l=>({type:l.s,y:l.y,name:[],hospital:[],doctor:[],dept:[],tel:[],status:[]}));
+    for(const it of region.sort((a,b)=>b.y-a.y||a.x-b.x)){ if(labels.includes(it)) continue; if(!recs.length) break; let best=recs[0]; for(const r of recs){ if(Math.abs(r.y-it.y)<Math.abs(best.y-it.y)) best=r; }
+      const mid=(a,b)=>(xs[a]+xs[b])/2; const k=it.x<mid(0,1)?'name':it.x<mid(1,2)?'hospital':it.x<mid(2,3)?'doctor':it.x<mid(3,4)?'dept':it.x<mid(4,5)?'tel':'status'; best[k].push(it.s); }
+    out.diseases=recs.map(r=>({type:r.type,name:r.name.join(''),hospital:r.hospital.join(''),doctor:r.doctor.join(' '),dept:r.dept.join(''),tel:r.tel.join(''),status:r.status.join('')}));
+    // 特記事項・服薬内容（近い見出しに寄せる）
+    const sp=pg.find(i=>i.s==='【特記事項】'), me=pg.find(i=>i.s==='服薬内容');
+    if(sp){ const bottom=me?me.y-14:sp.y-200; const its=pg.filter(i=>i.y<sp.y-2&&i.y>bottom&&i.x>=95&&i.s!=='服薬内容'); const lines=groupLines(its,4); const a=[],b=[];
+      for(const L of lines){ const t=L.items.map(i=>i.s).join(''); if(me&&Math.abs(L.y-me.y)<Math.abs(L.y-sp.y)) b.push(t); else a.push(t); } out.special=a.join('\n'); out.meds=b.join('\n'); }
+  }
+  // --- 生活歴・現在の生活状況（1ページ目）---
+  const lh=find(p1,/これまでの職業/), cur=find(p1,/生活・介護の状況など/), fin=find(p1,/障害高齢者の/);
+  if(lh&&cur){ out.life=groupLines(p1.filter(i=>i.y<lh.y-2&&i.y>cur.y+2&&i.x>=95&&i.x<420),4).map(L=>L.items.map(i=>i.s).join('')).join(''); }
+  if(cur&&fin){ out.current=groupLines(p1.filter(i=>i.y<cur.y-2&&i.y>fin.y+6&&i.x>=95),4).map(L=>L.items.map(i=>i.s).join('')).join(''); }
+  return out;
+}
+

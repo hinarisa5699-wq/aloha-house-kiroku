@@ -87,7 +87,7 @@ function cellRange(col, y){
   for (let i=0;i<col.ys.length-1;i++){ if (y <= col.ys[i] + 0.5 && y > col.ys[i+1] - 0.5) return { top:col.ys[i], bottom:col.ys[i+1] }; }
   return null;
 }
-function cleanStaff(x){ return String(x||"").replace(/[（(].*?[)）]/g,"").replace(/[\s　]+/g,"").replace(/様$/,"").trim(); }
+function cleanStaff(x){ return String(x||"").replace(/[★☆◎]/g,"").replace(/[（(].*?[)）]/g,"").replace(/[\s　]+/g,"").replace(/様$/,"").trim(); }
 
 // --- 業務日誌ページ ---
 function parseNippouPage(lines, users, diag){
@@ -123,6 +123,26 @@ function parseNippouPage(lines, users, diag){
       for (let i=0;i<cols.length && i<vals.length;i++){ if (vals[i] && vals[i] !== "-") parts.push(cols[i]+"："+vals[i]); }
       users[key].records.push({ date:dateStr, day, kind:"利用", time:(start&&end)?start+"〜"+end:"", content:parts.join("　") });
       diag.attRows++;
+    }
+  }
+  // 職員名／職種の表 → diag.staff[名前]={n,role}
+  const sh = lines.findIndex(l=>{ const t = norm(kLineText(l)); return t.indexOf("職員名")>=0 && t.indexOf("職種")>=0; });
+  if (sh >= 0){
+    diag.staff = diag.staff || {};
+    const hdr = kRunsOf(lines[sh]); const nameRun = hdr.find(r=>norm(r.str).indexOf("職員名")>=0); const roleRun = hdr.find(r=>norm(r.str).indexOf("職種")>=0);
+    for (let li=sh+1; li<lines.length; li++){
+      const t = norm(kLineText(lines[li]));
+      if (t.indexOf("職員計")>=0 || t.indexOf("利用者名")>=0 || t.indexOf("利用者情報")>=0) break;
+      const runs = kRunsOf(lines[li]).filter(r=>!/^[職員勤務体制利用者情報]$/.test(r.str));
+      let nm = null, role = "";
+      if (nameRun) nm = runs.find(r=>Math.abs(r.x - nameRun.x) < 60 && r.str.length >= 2);
+      if (!nm) nm = runs.find(r=>r.str.length >= 2);
+      if (!nm) continue;
+      if (roleRun){ const rr = runs.filter(r=>r !== nm && r.x >= roleRun.x - 40); role = rr.map(r=>r.str).join(""); }
+      const name = cleanStaff(nm.str);
+      if (name && /^[一-龥ぁ-んァ-ヶー々]{2,8}$/.test(name) && !/職種|職員|利用者|欠席|確認/.test(name)){
+        const e = diag.staff[name] || { n:0, role:"" }; e.n++; if (role && !e.role) e.role = role; diag.staff[name] = e;
+      }
     }
   }
   const si = lines.findIndex(l=>norm(kLineText(l)).indexOf("特記")===0);
@@ -193,7 +213,7 @@ function fillDates(records){
 // 戻り値: {users:{key:{name,records:[{date,day,kind,time,content,recorder}]}}, diag}
 async function parseKirokuDoc(pdf){
   const users = {};
-  const diag = { pages:pdf.numPages, nippouPages:0, kirokuPages:0, attRows:0, noteRows:0, kirokuRows:0, skipped:[] };
+  const diag = { pages:pdf.numPages, nippouPages:0, kirokuPages:0, attRows:0, noteRows:0, kirokuRows:0, skipped:[], staff:{} };
   let lastKey = null;
   const kirokuKeys = new Set();
   for (let p=1; p<=pdf.numPages; p++){
@@ -236,13 +256,85 @@ function parseLine(text){
   const t = text.replace(/\r\n/g,"\n");
   const msgs = []; let cur = null;
   for (const raw of t.split("\n")){
-    const line = raw.replace(/​/g,"");
+    const line = raw.replace(/\u200b/g,"");
     const dm = line.match(/^(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})/);
     if (dm){ cur = { y:+dm[1], m:+dm[2], d:+dm[3] }; continue; }
     const tm = line.match(/^(\d{1,2}:\d{2})[\t ](.*)$/);
-    if (tm && cur){ const rest=tm[2]; const sp=rest.indexOf('\t'); msgs.push({ ...cur, time:tm[1], sender: sp>=0?rest.slice(0,sp):'', text: sp>=0?rest.slice(sp+1):rest }); }
+    if (tm && cur){ const rest=tm[2]; const sp=rest.indexOf('\t'); msgs.push({ ...cur, time:tm[1], sender: sp>=0?rest.slice(0,sp):'', text: sp>=0?rest.slice(sp+1):rest, _raw: sp<0 }); }
     else if (msgs.length && line.trim()){ msgs[msgs.length-1].text += "\n" + line.trim(); }
   }
+  // Android版などタブ区切りでない書き出し：先頭の1〜3語のうち、何度も出てくる並びを送信者名とみなす
+  const raws = msgs.filter(m=>m._raw);
+  if (raws.length){
+    const cnt = {};
+    for (const m of raws){ const w=m.text.split(/\n/)[0].split(' '); for (let k=1;k<=3&&k<w.length;k++){ const key=w.slice(0,k).join(' '); cnt[key]=(cnt[key]||0)+1; } }
+    for (const m of raws){ const first=m.text.split(/\n/)[0]; const w=first.split(' '); let best=0;
+      for (let k=Math.min(3,w.length-1);k>=1;k--){ const key=w.slice(0,k).join(' '); if ((cnt[key]||0)>=3 && !/[。、！？!?]/.test(key)) { best=k; break; } }
+      if (best){ m.sender=w.slice(0,best).join(' '); m.text=m.text.slice(m.sender.length+1); }
+    }
+  }
+  msgs.forEach(m=>{ delete m._raw; });
   return msgs;
 }
 const RE_HOUSE_KW = /モーニングコール|オンコール|服薬|お薬|内服|軟膏|塗布|外用|貼付|処方|受診|往診|訪問診療|訪問看護|歯科|通院|ご家族|家族|面会|来訪|朝食|昼食|夕食|朝ご飯|昼ご飯|夕ご飯|完食|食事|入居者|号室|ハウス/;
+
+// ===== 取り込み行の組み立て（アプリ・Chrome拡張で共用） =====
+const NOT_STAFF_RE=/カイテク|訪問システム|システム|機能訓練|アロハ花子|花子$/;
+function cleanRecorder(n){ return String(n||'').replace(/[★☆◎○●\s　]/g,'').replace(/[（(].*?[)）]/g,'').trim(); }
+const surnameOf=n=>(n||'').split(/[ 　]/)[0];
+function splitDiary(content, residents){
+  // 入居者の苗字／フルネーム（空白なし）＋様/さん/さま を区切りにする
+  const marks=[]; for(const r of residents){ const full=r['氏名'].replace(/[ 　]/g,''); const sn=surnameOf(r['氏名']); for(const nm of [...new Set([full,sn])]){ if(nm.length<2) continue; const re=new RegExp(nm+'(?:様|さん|さま)?[:：]?','g'); let m; while((m=re.exec(content))){ marks.push({i:m.index,len:m[0].length,r}); } } }
+  marks.sort((a,b)=>a.i-b.i||b.len-a.len);
+  const uniq=[]; for(const m of marks){ const last=uniq[uniq.length-1]; if(last && m.i<last.i+last.len) continue; uniq.push(m); }
+  const isMorning=/モーニングコール/.test(content);
+  const out=[];
+  const head=(uniq.length?content.slice(0,uniq[0].i):content).replace(/モーニングコールの様子[:：]?/,'').replace(/【特記】\s*$/,'').replace(/\s*\d{3}$/,'').trim();
+  if(head && head!=='【特記】') out.push({resident:null,text:head,kind:/オンコール/.test(head)?'オンコール':''});
+  for(let k=0;k<uniq.length;k++){ const m=uniq[k]; const end=k+1<uniq.length?uniq[k+1].i:content.length;
+    let text=content.slice(m.i+m.len,end).trim().replace(/^[、。,\s]+/,'').replace(/【特記】\s*$/,'').replace(/\s*\d{3}$/,'').trim(); if(!text) continue;
+    const isToku=/【特記】/.test(content.slice(Math.max(0,m.i-6),m.i));
+    out.push({resident:m.r,text,kind:isToku?'特記':(isMorning?'モーニングコール':'')}); }
+  return out;
+}
+// results: parseKirokuDoc の戻り値の配列。opt: {residents:[{id,氏名}], ym:'YYYY-MM', logUser:'アロハ花子'}
+function buildExtRows(results, opt){
+  const residents=opt.residents||[]; const ym=opt.ym; const logUser=normName(opt.logUser||'アロハ花子');
+  const matchResident=name=>{ const k=normName(name); return residents.find(r=>normName(r['氏名'])===k); };
+  const own=[], diary=[], staffCounts={}; let pages=0;
+  for(const res of results){
+    pages+=res.diag.pages;
+    for(const nm in (res.diag.staff||{})){ const s=res.diag.staff[nm]; staffCounts[nm]=(staffCounts[nm]||0)+s.n; }
+    for(const key in res.users){ const u=res.users[key];
+      const isDiary=normName(u.name)===logUser; const resident=isDiary?null:matchResident(u.name);
+      if(!isDiary&&!resident) continue;
+      let pend=[]; for(const r of u.records){ const m=(r.content||'').trim().match(/^[（(]\s*[★☆]?\s*([^（）()]{2,12})\s*[)）]$/); if(m){ pend.forEach(x=>{ if(!x.recorder) x.recorder=m[1]; }); pend=[]; r._skip=true; } else { pend.push(r); } }
+      let lastTime='', morning=false, lastDate='';
+      for(const r of u.records){ if(r._skip) continue; const date=kirokuDate(r,ym); if(!date||date.slice(0,7)!==ym) continue; let content=(r.content||'').replace(/\s+/g,' ').trim(); if(!content||/^\d+$/.test(content)) continue;
+        if(date!==lastDate){ lastDate=date; lastTime=''; morning=false; }
+        let time=(r.time||'').split(/[〜~]/)[0].replace('：',':').trim();
+        const tm=content.match(/^(\d{1,2}:\d{2})\s*/); if(tm){ if(!time) time=tm[1].padStart(5,'0'); content=content.slice(tm[0].length); }
+        if(time){ lastTime=time; morning=false; } else time=lastTime;
+        const rc=content.match(/[（(]\s*[★☆]?\s*([^（）()]{2,12})\s*[)）]\s*$/); if(rc){ if(!r.recorder) r.recorder=rc[1]; content=content.slice(0,rc.index).trim(); }
+        if(/^モーニングコールの様子/.test(content)){ morning=true; content=content.replace(/^モーニングコールの様子[:：]?/,'').trim(); if(!content) continue; }
+        content=content.replace(/^\d{3}(?=[一-龥])/,'').replace(/\s*\d{3}$/,''); if(!content) continue;
+        const isMorningRec=morning && r.kind==='特記' && isDiary;
+        if(isDiary){
+          for(const sg of splitDiary(content, residents)){
+            if(sg.resident) diary.push({'日付':date,'時刻':time,'利用者ID':sg.resident.id,'氏名':sg.resident['氏名'],'種別':(sg.kind&&sg.kind!=='特記')?sg.kind:(isMorningRec?'モーニングコール':(sg.kind||r.kind||'')),'内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'});
+            else if(/オンコール|モーニングコール|全員|入居者/.test(sg.text)) diary.push({'日付':date,'時刻':time,'利用者ID':'','氏名':'（全体）','種別':sg.kind||r.kind||'','内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'});
+          }
+        } else own.push({'日付':date,'時刻':time,'利用者ID':resident.id,'氏名':resident['氏名'],'種別':r.kind||'','内容':content,'記録者':r.recorder||'','出所':'介護記録'});
+      }
+    }
+  }
+  for(const r of own.concat(diary)){ const n=cleanRecorder(r['記録者']); if(n) staffCounts[n]=(staffCounts[n]||0)+1; }
+  return {own, diary, staffCounts, pages};
+}
+// 記入者候補：件数順・部分一致（姓だけ等）や職員でない名前を除外
+function staffCandidates(staffCounts, existing){
+  const all=Object.entries(staffCounts).sort((a,b)=>b[1]-a[1]).map(x=>cleanRecorder(x[0])).filter(Boolean);
+  const ex=(existing||[]).map(cleanRecorder); const add=[];
+  for(const n of all){ if(n.length<3||NOT_STAFF_RE.test(n)) continue; if(all.concat(ex).some(o=>o!==n&&o.startsWith(n))) continue; if(ex.includes(n)||add.includes(n)) continue; add.push(n); }
+  return add;
+}

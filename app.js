@@ -27,11 +27,11 @@ async function api(action, params={}){
 function busy(on){document.body.style.cursor=on?'progress':'';}
 
 // ===== 状態 =====
-let D={date:todayStr(), residents:[], allResidents:[], staff:[], day:{meals:[],notes:[],schedules:[],ext:[]}, cur:null, meal:'朝食', forms:(LS('hc_forms')||DEFAULT_FORMS).split(',')};
+let D={date:todayStr(), residents:[], allResidents:[], staff:[], contacts:[], day:{meals:[],notes:[],schedules:[],ext:[]}, cur:null, meal:'朝食', forms:(LS('hc_forms')||DEFAULT_FORMS).split(',')};
 if(window.pdfjsLib){ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
 
 // ===== ナビ =====
-function show(p){ $$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p)); $$('.panel').forEach(x=>x.classList.toggle('on',x.id==='p-'+p)); if(p==='list') renderList(); if(p==='sch') { fillSchRes(); loadSchList(); } }
+function show(p){ $$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p)); $$('.panel').forEach(x=>x.classList.toggle('on',x.id==='p-'+p)); if(p==='list') renderList(); if(p==='sch') { fillSchRes(); loadSchList(); } if(p==='base'&&window.renderBaseTab) renderBaseTab(); }
 $$('nav.tabs button').forEach(b=>b.onclick=()=>show(b.dataset.p));
 $('#date').value=D.date;
 $('#date').onchange=e=>{D.date=e.target.value;loadDay();};
@@ -43,7 +43,7 @@ function dateLabel(s){const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/
 async function boot(){
   $('#cfgUrl').value=cfg.url; $('#cfgToken').value=cfg.token; $('#formsText').value=D.forms.join(',');
   if(!cfg.url){ $('#todayList').innerHTML='<div class="card">はじめに「設定」でGASのURLと合言葉を入れてください。</div>'; show('set'); return; }
-  try{ busy(true); const b=await api('bootstrap'); D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); await loadDay(); }
+  try{ busy(true); const b=await api('bootstrap'); D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); showAiStatus(); await loadDay(); }
   catch(e){ $('#todayList').innerHTML=`<div class="card">接続できません：${e.message}<br><span class="muted">設定を確認してください</span></div>`; }
   finally{ busy(false); }
 }
@@ -53,7 +53,7 @@ async function loadDay(){
 }
 const mealOf=(rid,meal)=>D.day.meals.find(m=>m['利用者ID']===rid&&m['食事']===meal);
 const extOf=rid=>(D.day.ext||[]).filter(e=>e['利用者ID']===rid||(rid&&e['利用者ID']===''&&false)).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''));
-const extLabel=e=>e['出所']==='介護記録'?('デイ'+(e['種別']?'・'+e['種別']:'')):(e['出所']+(e['種別']&&e['種別']!=='ケース'?'・'+e['種別']:''));
+const extLabel=e=>e['出所']==='介護記録'?('デイ'+(e['種別']?'・'+e['種別']:'')):e['出所']==='訪看記録'?'訪看':(e['出所']+(e['種別']&&e['種別']!=='ケース'?'・'+e['種別']:''));
 const extHtml=e=>`<div class="ext"><span class="m">${e['時刻']||''} ${esc(extLabel(e))}${e['記録者']?' '+esc(e['記録者']):''}</span><br>${esc(e['内容'])}</div>`;
 const schOf=rid=>D.day.schedules.filter(s=>s['利用者ID']===rid).sort((a,b)=>(a['開始']||'').localeCompare(b['開始']||''));
 const schCls=s=>({'訪看':'nurse','訪介':'helper','デイ':'day'})[s['種別']]||'manual';
@@ -99,9 +99,38 @@ function renderEntry(){
   const syms=(m['症状']||'').split(',').filter(Boolean); $$('#sym button').forEach(b=>b.classList.toggle('on',syms.includes(b.dataset.v)));
   $('#memo').value=m['備考']||''; if(m['記入者']) $('#staff').value=m['記入者'];
   $('#delMeal').style.display=m.id?'':'none';
+  renderInfo();
   renderNotes();
   const ex=extOf(r.id); $('#extToday').innerHTML=ex.length?ex.map(extHtml).join(''):'<span class="muted">この日の取込記録はありません</span>';
 }
+// ===== 基本情報・関係先 =====
+const CKINDS=['ケアマネ','訪問看護','訪問介護','主治医・病院','歯科','薬局','デイ','福祉用具','家族・キーパーソン','行政・その他'];
+const contactsOf=rid=>D.contacts.filter(c=>c['利用者ID']===rid);
+const telLink=s=>esc(s).replace(/(0\d{1,4}-?\d{1,4}-?\d{3,4})/g,'<a href="tel:$1">$1</a>');
+function ageOf(d){ if(!d) return ''; const a=new Date(d+'T00:00:00'), n=new Date(); let y=n.getFullYear()-a.getFullYear(); const m=n.getMonth()-a.getMonth()+(n.getDate()<a.getDate()?-1:0); const mm=((m%12)+12)%12; if(m<0) y--; return y>0?`${y}年${mm}か月`:`${mm}か月`; }
+function renderInfo(){
+  const r=D.cur; const cs=contactsOf(r.id);
+  const lines=[];
+  lines.push(`入居日：${r['入居日']?esc(r['入居日'].replace(/-/g,'/'))+'（'+ageOf(r['入居日'])+'）':'<span class="muted">未登録</span>'}　食事形態：${esc(r['食事形態']||'—')}${r['メモ']?'　'+esc(r['メモ']):''}`);
+  lines.push(`既往歴：${r['既往歴']?esc(r['既往歴']):'<span class="muted">未登録</span>'}`);
+  if(cs.length) lines.push(cs.map(c=>`<div class="ext" style="border-color:#1d6fb8;background:#eef4fb"><b>${esc(c['種別'])}</b> ${esc(c['事業所'])}${c['担当者']?'　'+esc(c['担当者']):''}${c['連絡先']?'　'+telLink(c['連絡先']):''}${c['メモ']?'<br><span class="m">'+esc(c['メモ'])+'</span>':''}</div>`).join(''));
+  else lines.push('<span class="muted">関係先：未登録</span>');
+  $('#infoView').innerHTML=lines.join('<br>');
+}
+function contactRow(c={}){ return `<div class="crow"><select data-k="種別">${CKINDS.map(k=>`<option ${c['種別']===k?'selected':''}>${k}</option>`).join('')}</select><input data-k="事業所" placeholder="事業所名" value="${esc(c['事業所']||'')}"><input data-k="担当者" placeholder="担当者" value="${esc(c['担当者']||'')}"><input data-k="連絡先" placeholder="電話など" value="${esc(c['連絡先']||'')}"><button type="button" class="cDel">×</button><input class="w2" data-k="メモ" placeholder="メモ（曜日・時間帯など）" value="${esc(c['メモ']||'')}" style="grid-column:2/5"></div>`; }
+$('#infoMore').onclick=()=>openBase(D.cur.id);
+$('#infoEdit').onclick=()=>{ const r=D.cur; $('#iMoveIn').value=r['入居日']||''; $('#iForm').value=r['食事形態']||''; $('#iHistory').value=r['既往歴']||''; $('#iMemo').value=r['メモ']||''; $('#formList2').innerHTML=D.forms.map(f=>`<option value="${esc(f)}">`).join(''); $('#cRows').innerHTML=contactsOf(r.id).map(contactRow).join(''); $('#infoForm').classList.remove('hide'); $('#infoView').classList.add('hide'); };
+$('#cRows').addEventListener('click',e=>{ if(e.target.classList.contains('cDel')) e.target.closest('.crow').remove(); });
+$('#cAdd').onclick=()=>{ $('#cRows').insertAdjacentHTML('beforeend',contactRow()); };
+$('#infoCancel').onclick=()=>{ $('#infoForm').classList.add('hide'); $('#infoView').classList.remove('hide'); };
+$('#infoSave').onclick=async()=>{
+  const r=D.cur; const rows=[...$('#cRows').querySelectorAll('.crow')].map(row=>{ const o={'氏名':r['氏名']}; row.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.value.trim()); return o; }).filter(o=>o['事業所']||o['担当者']||o['連絡先']);
+  try{ busy(true); const upd=await api('updateResident',{id:r.id,'入居日':$('#iMoveIn').value,'食事形態':$('#iForm').value.trim(),'既往歴':$('#iHistory').value.trim(),'メモ':$('#iMemo').value.trim()});
+    Object.assign(r,upd); const idx=D.allResidents.findIndex(x=>x.id===r.id); if(idx>=0) Object.assign(D.allResidents[idx],upd);
+    const saved=await api('saveContacts',{residentId:r.id,rows}); D.contacts=D.contacts.filter(c=>c['利用者ID']!==r.id).concat(saved);
+    $('#infoForm').classList.add('hide'); $('#infoView').classList.remove('hide'); renderEntry(); renderResTable(); toast('保存しました'); }
+  catch(e){ toast('失敗: '+e.message); } finally{ busy(false); }
+};
 $('#saveMeal').onclick=async()=>{
   const r=D.cur; const staple=segVal('staple'), side=segVal('side');
   if(!staple) return toast('主食の量を選んでください');
@@ -144,6 +173,9 @@ async function renderList(){
     const cell=m=>{ if(!m) return '<td></td>'; if(m['主食']==='欠') return '<td class="skip">欠食</td>'; const cls=m['症状']?'sym':(+m['主食']<=5||+m['副食']<=5)?'low':''; return `<td class="${cls}">${m['主食']}/${m['副食']}${m['水分']?'<br><small>'+m['水分']+'ml</small>':''}${m['症状']?'<br><small>'+esc(m['症状'])+'</small>':''}${m['備考']?'<br><small>'+esc(m['備考'])+'</small>':''}</td>`; };
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">食事記録　${D.date.replace(/-/g,'/')}(${WD[new Date(D.date+'T00:00:00').getDay()]})</h2><table class="grid"><tr><th>部屋</th><th>氏名</th><th>朝食<br>主/副</th><th>昼食<br>主/副</th><th>おやつ</th><th>夕食<br>主/副</th><th>予定</th><th>様子・特記</th><th>他部署の記録</th></tr>`+
       D.residents.map(r=>`<tr><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td>${['朝食','昼食','おやつ','夕食'].map(m=>cell(mealOf(r.id,m))).join('')}<td class="l" style="white-space:normal;text-align:left">${schOf(r.id).map(s=>esc(fmtSch(s))).join('<br>')}</td><td style="text-align:left">${D.day.notes.filter(n=>n['利用者ID']===r.id).map(n=>`${n['時刻']||''} ${esc(n['種別'])}:${esc(n['内容'])}`).join('<br>')}</td><td style="text-align:left">${extOf(r.id).map(e=>`${e['時刻']||''} ${esc(extLabel(e))}：${esc(e['内容'])}`).join('<br>')}</td></tr>`).join('')+'</table><div class="legend">数字は主食/副食の摂取割合（10=全量）。橙=半分以下、赤=症状あり。</div>';
+  } else if(mode==='info'){
+    out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">入居者一覧　${new Date().toLocaleDateString('ja-JP')}現在</h2><table class="grid"><tr><th>部屋</th><th>氏名</th><th>ふりがな</th><th>入居日</th><th>食事形態</th><th>既往歴</th><th>関係事業所・担当者・連絡先</th></tr>`+
+      D.residents.map(r=>`<tr><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td class="l">${esc(r['ふりがな'])}</td><td>${r['入居日']?esc(r['入居日'].replace(/-/g,'/')):''}</td><td>${esc(r['食事形態'])}</td><td style="text-align:left">${esc(r['既往歴'])}</td><td style="text-align:left">${contactsOf(r.id).map(c=>`${esc(c['種別'])}：${esc(c['事業所'])}${c['担当者']?' '+esc(c['担当者']):''}${c['連絡先']?' '+esc(c['連絡先']):''}`).join('<br>')}</td></tr>`).join('')+'</table>';
   } else if(mode==='notes'){
     const list=D.day.notes.slice().sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''));
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">様子・特記　${D.date.replace(/-/g,'/')}</h2><table class="grid"><tr><th>時刻</th><th>氏名</th><th>種別</th><th>内容</th><th>記入者</th></tr>`+(list.map(n=>`<tr><td>${n['時刻']||''}</td><td class="l">${esc(n['氏名'])}</td><td>${esc(n['種別'])}</td><td style="text-align:left">${esc(n['内容'])}</td><td>${esc(n['記入者'])}</td></tr>`).join('')||'<tr><td colspan="5">記録なし</td></tr>')+'</table>';
@@ -234,77 +266,48 @@ $('#impHelper').onchange=async e=>{ const st=$('#impStatus'); try{ busy(true); s
 $('#impDay').onchange=async e=>{ const st=$('#impStatus'); try{ busy(true); st.textContent='読み取り中…'; let all=[]; for(const f of e.target.files){ const r=await parseDayPdf(await readPdf(f)); all=all.concat(r.rows); } st.textContent=await importRows(all,'デイ','デイ'); loadDay(); }catch(err){ st.textContent='エラー: '+err.message; } finally{ busy(false); e.target.value=''; } };
 
 // ===== 介護記録PDF・LINE 取り込み =====
-(function(){ const s=$('#extYM'); const now=new Date(); for(let k=-3;k<=1;k++){ const d=new Date(now.getFullYear(),now.getMonth()+k,1); const v=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; s.innerHTML+=`<option value="${v}" ${k===0?'selected':''}>${d.getFullYear()}年${d.getMonth()+1}月</option>`; } })();
-const surnameOf=n=>(n||'').split(/[ 　]/)[0];
-function residentBySurnameText(text){ // 本文に苗字を含む入居者（複数可）
-  return D.residents.filter(r=>{ const sn=surnameOf(r['氏名']); return sn.length>=2 && text.indexOf(sn)>=0; });
-}
-function splitDiary(content){
-  // 入居者の苗字／フルネーム（空白なし）＋様/さん/さま を区切りにする
-  const marks=[]; for(const r of D.residents){ const full=r['氏名'].replace(/[ 　]/g,''); const sn=surnameOf(r['氏名']); for(const nm of [...new Set([full,sn])]){ if(nm.length<2) continue; const re=new RegExp(nm+'(?:様|さん|さま)?[:：]?','g'); let m; while((m=re.exec(content))){ marks.push({i:m.index,len:m[0].length,r}); } } }
-  marks.sort((a,b)=>a.i-b.i||b.len-a.len);
-  const uniq=[]; for(const m of marks){ const last=uniq[uniq.length-1]; if(last && m.i<last.i+last.len) continue; uniq.push(m); }
-  const isMorning=/モーニングコール/.test(content);
-  const out=[];
-  const head=(uniq.length?content.slice(0,uniq[0].i):content).replace(/モーニングコールの様子[:：]?/,'').replace(/【特記】\s*$/,'').trim();
-  if(head && head!=='【特記】') out.push({resident:null,text:head,kind:/オンコール/.test(head)?'オンコール':''});
-  for(let k=0;k<uniq.length;k++){ const m=uniq[k]; const end=k+1<uniq.length?uniq[k+1].i:content.length;
-    let text=content.slice(m.i+m.len,end).trim().replace(/^[、。,\s]+/,'').replace(/【特記】\s*$/,'').trim(); if(!text) continue;
-    const isToku=/【特記】/.test(content.slice(Math.max(0,m.i-6),m.i));
-    out.push({resident:m.r,text,kind:isToku?'特記':(isMorning?'モーニングコール':'')}); }
-  return out;
-}
+(function(){ for(const s of [$('#extYM'),$('#lineYM')]){ const now=new Date(); for(let k=-3;k<=1;k++){ const d=new Date(now.getFullYear(),now.getMonth()+k,1); const v=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; s.innerHTML+=`<option value="${v}" ${k===0?'selected':''}>${d.getFullYear()}年${d.getMonth()+1}月</option>`; } } })();
 $('#impKiroku').onchange=async e=>{
-  const st=$('#extStatus'); const ym=$('#extYM').value; const logUser=normName($('#logUser').value);
+  const st=$('#extStatus'); const ym=$('#extYM').value; const logUser=$('#logUser').value;
   try{ busy(true); st.textContent='PDFを読み取り中…（枚数が多いと1〜2分かかります）';
-    const own=[], diary=[]; let pages=0;
-    for(const f of e.target.files){
-      const res=await parseKirokuDoc(await readPdf(f)); pages+=res.diag.pages;
-      for(const key in res.users){ const u=res.users[key];
-        const isDiary=normName(u.name)===logUser; const resident=isDiary?null:matchResident(u.name);
-        if(!isDiary&&!resident) continue;
-        for(const r of u.records){ const date=kirokuDate(r,ym); if(!date||date.slice(0,7)!==ym) continue; const content=(r.content||'').replace(/\s+/g,' ').trim(); if(!content||/^\d+$/.test(content)) continue;
-          const time=(r.time||'').split(/[〜~]/)[0].replace('：',':').trim();
-          if(isDiary){ // ハウス日誌：「○○様：…」ごとに入居者へ振り分け。先頭のオンコール件数・担当は全体記録として残す
-            const segs=splitDiary(content);
-            for(const sg of segs){
-              if(sg.resident) diary.push({'日付':date,'時刻':time,'利用者ID':sg.resident.id,'氏名':sg.resident['氏名'],'種別':sg.kind||r.kind||'','内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'});
-              else if(/オンコール|モーニングコール|全員|入居者/.test(sg.text)) diary.push({'日付':date,'時刻':time,'利用者ID':'','氏名':'（全体）','種別':sg.kind||r.kind||'','内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'});
-            }
-          } else own.push({'日付':date,'時刻':time,'利用者ID':resident.id,'氏名':resident['氏名'],'種別':r.kind||'','内容':content,'記録者':r.recorder||'','出所':'介護記録'});
-        }
-      }
-    }
+    const results=[]; for(const f of e.target.files){ results.push(await parseKirokuDoc(await readPdf(f))); }
+    const {own,diary,staffCounts,pages}=buildExtRows(results,{residents:D.residents,ym,logUser});
     if(!own.length&&!diary.length) throw new Error(`${pages}ページ読みましたが、対象月(${ym})の入居者・ハウス日誌の記録が見つかりませんでした。対象月とPDFの種類を確認してください`);
     st.textContent='保存中…';
     const a=await api('importExt',{key:ym+'|介護記録',rows:own}); const b=await api('importExt',{key:ym+'|ハウス日誌',rows:diary});
-    st.textContent=`${pages}ページ → 入居者本人の記録 ${a.added}件、ハウス日誌 ${b.added}件（うち全体扱い ${diary.filter(x=>!x['利用者ID']).length}件）を保存しました`;
+    const addedStaff=await mergeStaff(staffCandidates(staffCounts,D.staff));
+    st.textContent=`${pages}ページ → 入居者本人の記録 ${a.added}件、ハウス日誌 ${b.added}件（うち全体扱い ${diary.filter(x=>!x['利用者ID']).length}件）を保存しました`+(addedStaff?`。記録者 ${addedStaff}名を記入者に追加しました`:'');
     loadDay(); loadExtList();
   }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); e.target.value=''; }
 };
-$('#impLine').onchange=async e=>{
-  const st=$('#extStatus'); const ym=$('#extYM').value; const [y,m]=ym.split('-').map(Number);
-  try{ busy(true); const f=e.target.files[0]; const text=new TextDecoder('utf-8').decode(await f.arrayBuffer());
-    const all=parseLine(text).filter(g=>g.y===y&&g.m===m);
+async function importLineFile(f, st, ym){
+  const [y,m]=ym.split('-').map(Number);
+  try{ busy(true); const text=new TextDecoder('utf-8').decode(await f.arrayBuffer());
+    const parsed=parseLine(text); const all=parsed.filter(g=>g.y===y&&g.m===m);
     const names=D.residents.map(r=>r['氏名']); const sns=names.map(surnameOf).filter(s=>s.length>=2);
     const picked=all.filter(g=>{ const t=g.text; if(/^(画像|動画|スタンプ|\[投票|\[投票終了|.*をグループに追加しました。?$|メッセージの送信を取り消しました)/.test(t)) return false; if(/https?:\/\//.test(t)&&t.length<80) return false; return sns.some(s=>t.indexOf(s)>=0) || RE_HOUSE_KW.test(t) || /オンコール/.test(g.sender||''); })
       .map(g=>({date:`${g.y}-${pad(g.m)}-${pad(g.d)}`,time:g.time,sender:g.sender,text:g.text.slice(0,600)}));
+    if(!all.length){ const months=[...new Set(parsed.map(g=>`${g.y}-${pad(g.m)}`))].sort(); throw new Error(`${ym}の投稿がありません（このファイルにある月：${months.slice(-6).join('、')}）`); }
     if(!picked.length) throw new Error(`${ym}の対象になりそうな投稿がありません（全${all.length}通）`);
-    if(!confirm(`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`)) return;
+    if(!confirm(`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`)) { st.textContent='中止しました'; return; }
     const CH=120; let total=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
     for(let i=0;i<picked.length;i+=CH){ st.textContent=`AI抽出中… ${Math.min(i+CH,picked.length)}/${picked.length}通`;
       const res=await api('extractLine',{residents:names,messages:picked.slice(i,i+CH)});
       const rows=res.items.map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.content,'記録者':'','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
       await api('importExt',{key:ym+'|LINE',rows,append:i>0}); total+=rows.length;
     }
-    st.textContent=`LINE ${picked.length}通 → ${total}件を保存しました。下の一覧で内容を確認し、違うものは削除してください`;
-    loadDay(); loadExtList();
-  }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); e.target.value=''; }
-};
+    st.textContent=`LINE ${picked.length}通 → ${total}件を保存しました。予定タブの「取込済みを表示」（LINE）で内容を確認し、違うものは削除してください`;
+    loadDay(); if($('#p-sch').classList.contains('on')) loadExtList();
+  }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); }
+}
+$('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
+$('#impLine2').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#lineStatus'),$('#lineYM').value); e.target.value=''; };
+async function showAiStatus(){ try{ const s=await api('aiStatus'); $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; }catch(e){} }
+$('#aiKeySave').onclick=async()=>{ const k=$('#aiKey').value.trim(); if(!k) return toast('APIキーを入れてください'); if(!/^sk-ant-/.test(k)&&!confirm('sk-ant- で始まっていません。このまま保存しますか？')) return; try{ busy(true); const s=await api('setApiKey',{key:k}); $('#aiKey').value=''; $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; toast('保存しました'); }catch(e){ toast('失敗: '+e.message); } finally{ busy(false); } };
 $('#extReload').onclick=loadExtList; $('#extFilter').onchange=loadExtList;
 async function loadExtList(){
   const out=$('#extList'); const ym=$('#extYM').value; const f=$('#extFilter').value; out.innerHTML='<div class="muted">読み込み中…</div>';
-  try{ const keys=f?[f]:['介護記録','ハウス日誌','LINE']; let list=[]; for(const k of keys){ list=list.concat(await api('extList',{key:ym+'|'+k})); }
+  try{ const keys=f?[f]:['介護記録','ハウス日誌','LINE','訪看記録']; let list=[]; for(const k of keys){ list=list.concat(await api('extList',{key:ym+'|'+k})); }
     list.sort((a,b)=>(a['日付']+a['時刻']).localeCompare(b['日付']+b['時刻']));
     out.innerHTML=list.length?`<table class="grid"><tr><th>日付</th><th>時刻</th><th>氏名</th><th>出所</th><th>種別</th><th>内容</th><th>記録者</th><th></th></tr>`+list.map(e=>`<tr><td>${dateLabel(e['日付'])}</td><td>${e['時刻']||''}</td><td class="l">${esc(e['氏名'])}</td><td>${esc(e['出所'])}</td><td>${esc(e['種別'])}</td><td style="text-align:left">${esc(e['内容'])}</td><td>${esc(e['記録者'])}</td><td><button class="btn danger" style="padding:2px 8px;font-size:11px" data-x="${e.id}">削除</button></td></tr>`).join('')+'</table>':'<div class="muted">取込記録はありません</div>';
     $$('#extList [data-x]').forEach(b=>b.onclick=async()=>{ await api('deleteExt',{id:b.dataset.x}); b.closest('tr').remove(); loadDay(); });
@@ -318,11 +321,16 @@ let editRes=[];
 function renderResTable(){
   editRes=D.allResidents.map(r=>({...r}));
   const t=$('#resTable');
-  t.innerHTML='<tr><th>在籍</th><th>部屋</th><th>氏名</th><th>ふりがな</th><th>食事形態</th><th>メモ</th></tr>'+editRes.map((r,i)=>`<tr><td><input type="checkbox" data-i="${i}" data-k="在籍" ${r['在籍']!=='0'?'checked':''}></td><td><input type="text" data-i="${i}" data-k="部屋" value="${esc(r['部屋'])}" style="width:60px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="氏名" value="${esc(r['氏名'])}" style="width:120px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="ふりがな" value="${esc(r['ふりがな'])}" style="width:120px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="食事形態" list="formList" value="${esc(r['食事形態'])}" style="width:90px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="メモ" value="${esc(r['メモ'])}" style="width:140px;padding:4px"></td></tr>`).join('')+`<datalist id="formList">${D.forms.map(f=>`<option value="${esc(f)}">`).join('')}</datalist>`;
+  t.innerHTML='<tr><th>在籍</th><th>部屋</th><th>氏名</th><th>ふりがな</th><th>入居日</th><th>食事形態</th><th>既往歴</th><th>メモ</th></tr>'+editRes.map((r,i)=>`<tr><td><input type="checkbox" data-i="${i}" data-k="在籍" ${r['在籍']!=='0'?'checked':''}></td><td><input type="text" data-i="${i}" data-k="部屋" value="${esc(r['部屋'])}" style="width:60px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="氏名" value="${esc(r['氏名'])}" style="width:120px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="ふりがな" value="${esc(r['ふりがな'])}" style="width:120px;padding:4px"></td><td><input type="date" data-i="${i}" data-k="入居日" value="${esc(r['入居日']||'')}" style="width:140px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="食事形態" list="formList" value="${esc(r['食事形態'])}" style="width:90px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="既往歴" value="${esc(r['既往歴']||'')}" style="width:180px;padding:4px"></td><td><input type="text" data-i="${i}" data-k="メモ" value="${esc(r['メモ'])}" style="width:120px;padding:4px"></td></tr>`).join('')+`<datalist id="formList">${D.forms.map(f=>`<option value="${esc(f)}">`).join('')}</datalist>`;
   t.oninput=e=>{ const el=e.target; if(!el.dataset.k) return; editRes[+el.dataset.i][el.dataset.k]=el.type==='checkbox'?(el.checked?'1':'0'):el.value; };
 }
 $('#resAdd').onclick=()=>{ D.allResidents=editRes.concat([{id:'',氏名:'',ふりがな:'',部屋:'',食事形態:'',在籍:'1',メモ:''}]); renderResTable(); };
 $('#resSave').onclick=async()=>{ const list=editRes.filter(r=>r['氏名'].trim()); try{ busy(true); const saved=await api('saveResidents',{residents:list}); D.allResidents=saved; D.residents=saved.filter(r=>r['在籍']!=='0'); renderResTable(); toast('保存しました'); renderToday(); }catch(e){toast('失敗: '+e.message);} finally{busy(false);} };
+async function mergeStaff(add){
+  if(!add.length) return 0;
+  D.staff=D.staff.concat(add); await api('saveStaff',{names:D.staff}); $('#staffText').value=D.staff.join('\n'); renderStaffSel(); return add.length;
+}
+$('#staffFromExt').onclick=async()=>{ try{ busy(true); const ym=$('#extYM').value; let list=[]; for(const k of ['介護記録','ハウス日誌']) list=list.concat(await api('extList',{key:ym+'|'+k})); const cnt={}; for(const e of list){ const n=cleanRecorder(e['記録者']); if(n) cnt[n]=(cnt[n]||0)+1; } const n=await mergeStaff(staffCandidates(cnt,D.staff)); toast(n?`${n}名を記入者に追加しました`:'追加する記録者はありませんでした（取り込み月を確認）'); }catch(e){toast('失敗: '+e.message);} finally{busy(false);} };
 $('#staffSave').onclick=async()=>{ const names=$('#staffText').value.split(/\n/).map(s=>s.trim()).filter(Boolean); try{ await api('saveStaff',{names}); D.staff=names; renderStaffSel(); toast('保存しました'); }catch(e){toast('失敗: '+e.message);} };
 $('#resCsv').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return; const buf=await f.arrayBuffer(); let text; try{ text=new TextDecoder('utf-8',{fatal:true}).decode(buf); }catch(x){ text=new TextDecoder('shift_jis').decode(buf); }
@@ -334,7 +342,7 @@ $('#resCsv').onchange=async e=>{
   const cands=[]; for(const row of table.slice(1)){ let name=iN>=0?row[iN]:((row[iSei]||'')+' '+(row[iMei]||'')); name=(name||'').trim(); if(!name) continue; const bld=iB>=0?(row[iB]||''):'', adr=iA>=0?(row[iA]||''):''; const isHouse=(iB>=0||iA>=0)?HOUSE.test(bld+' '+adr):true; const rm=(bld.match(/(\d{3})/)||[])[1]||''; cands.push({name,kana:iK>=0?(row[iK]||''):'',isHouse,room:rm}); }
   const house=cands.filter(c=>c.isHouse);
   const useOnlyHouse = house.length && house.length<cands.length ? confirm(`${cands.length}名のうち、住所がアロハハウスの方は ${house.length}名です。\n${house.map(c=>c.name+(c.room?'('+c.room+')':'')).join('、')}\n\nこの${house.length}名だけを入居者として追加しますか？（キャンセル＝全員を追加）`) : false;
-  let added=0; for(const c of (useOnlyHouse?house:cands)){ if(editRes.some(r=>normName(r['氏名'])===normName(c.name))) continue; editRes.push({id:'',氏名:c.name,ふりがな:c.kana,部屋:c.room,食事形態:'',在籍:'1',メモ:''}); added++; }
+  let added=0; for(const c of (useOnlyHouse?house:cands)){ if(editRes.some(r=>normName(r['氏名'])===normName(c.name))) continue; editRes.push({id:'',氏名:c.name,ふりがな:c.kana,部屋:c.room,食事形態:'',在籍:'1',メモ:'',入居日:'',既往歴:''}); added++; }
   D.allResidents=editRes; renderResTable(); toast(`${added}名を追加しました。部屋・食事形態を確認して「入居者を保存」を押してください`); e.target.value='';
 };
 boot();
