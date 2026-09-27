@@ -182,7 +182,7 @@ function calendarHtml(ym, evByDay, title, sub, legend){
 }
 
 // ===== 一覧 =====
-$('#lMode').onchange=()=>{ $('#lRes').classList.toggle('hide',!['month','cal'].includes($('#lMode').value)); renderList(); };
+$('#lMode').onchange=()=>{ $('#lRes').classList.toggle('hide',!['month','cal','week'].includes($('#lMode').value)); renderList(); };
 $('#lRes').onchange=renderList; $('#printBtn').onclick=()=>window.print();
 async function renderList(){
   const mode=$('#lMode').value; const out=$('#listOut');
@@ -197,6 +197,19 @@ async function renderList(){
   } else if(mode==='notes'){
     const list=D.day.notes.slice().sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''));
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">様子・特記　${D.date.replace(/-/g,'/')}</h2><table class="grid"><tr><th>時刻</th><th>氏名</th><th>種別</th><th>内容</th><th>記入者</th></tr>`+(list.map(n=>`<tr><td>${n['時刻']||''}</td><td class="l">${esc(n['氏名'])}</td><td>${esc(n['種別'])}</td><td style="text-align:left">${esc(n['内容'])}</td><td>${esc(n['記入者'])}</td></tr>`).join('')||'<tr><td colspan="5">記録なし</td></tr>')+'</table>';
+  } else if(mode==='week'){
+    const rid=$('#lRes').value; const r=D.residents.find(x=>x.id===rid); if(!r) return;
+    const base=new Date(D.date+'T00:00:00'); const mon=new Date(base); mon.setDate(base.getDate()-((base.getDay()+6)%7)); // 月曜はじまり
+    const fmt=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; const days=[...Array(7)].map((_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
+    out.innerHTML='<div class="muted">読み込み中…</div>';
+    try{ const list=(await api('schedulesFrom',{from:fmt(days[0]),residentId:rid})).filter(x=>x['日付']<=fmt(days[6]));
+      const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
+      let h=`<div class="calsheet"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px"><h2 style="margin:0;font-size:17px">${esc(r['氏名'])} 様　週間予定表</h2><span class="muted">${days[0].getFullYear()}年${days[0].getMonth()+1}月${days[0].getDate()}日〜${days[6].getMonth()+1}月${days[6].getDate()}日</span><span style="margin-left:auto;font-size:11px"><span class="sch nurse">訪問看護</span><span class="sch helper">訪問介護</span><span class="sch day">デイ</span><span class="sch manual">往診・受診・入院等</span></span></div><table class="cal week"><thead><tr>`;
+      h+=days.map(d=>`<th class="${d.getDay()===0?'sun':d.getDay()===6?'sat':''}">${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）</th>`).join('')+'</tr></thead><tbody><tr>';
+      for(const d of days){ const ds=fmt(d); const evs=list.filter(x=>x['日付']===ds).sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始'])));
+        h+=`<td class="${ds===todayStr()?'today':''}">`+evs.map(e=>`<div class="ev ${schCls(e)}"><span class="t">${e['開始']||''}${e['終了']?'-'+e['終了']:''}</span>${esc(e['開始']?fmtSch(e).replace(/^\S+\s/,''):fmtSch(e))}</div>`).join('')+'</td>'; }
+      out.innerHTML=h+'</tr></tbody></table><div class="legend">「今日の食事量」タブの日付を動かすと週が変わります。印刷は右上の「印刷」。</div></div>';
+    }catch(e){ out.innerHTML='読み込み失敗: '+esc(e.message); }
   } else if(mode==='cal'||mode==='calall'){
     const ym=D.date.slice(0,7); const [y,mo]=ym.split('-').map(Number); const days=new Date(y,mo,0).getDate();
     out.innerHTML='<div class="muted">読み込み中…</div>';
