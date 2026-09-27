@@ -612,7 +612,7 @@ function applyRes(rid,upd){ const i=D.allResidents.findIndex(x=>x.id===rid); if(
 async function importAssessment(file){
   const st=$('#asStatus'); st.textContent='読み取り中…';
   try{ busy(true);
-    const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; const a=await parseAssessmentPdf(doc);
+    await window.ensurePdf(); const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; const a=await parseAssessmentPdf(doc);
     if(!a.name) throw new Error('アセスメントシートとして読み取れませんでした');
     let r=D.allResidents.find(x=>normName(x['氏名'])===normName(a.name));
     if(!r){ r=cur(); if(!confirm(`PDFの氏名「${a.name}」に一致する入居者がいません。選択中の ${r['氏名']} 様に取り込みますか？`)) { st.textContent='中止しました'; return; } }

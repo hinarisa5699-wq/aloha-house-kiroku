@@ -34,7 +34,9 @@ function busy(on){document.body.style.cursor=on?'progress':'';}
 
 // ===== 状態 =====
 let D={date:todayStr(), residents:[], allResidents:[], staff:[], contacts:[], day:{meals:[],notes:[],schedules:[],ext:[]}, cur:null, meal:'朝食', forms:(LS('hc_forms')||DEFAULT_FORMS).split(',')};
-if(window.pdfjsLib){ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+// PDF読み取りライブラリは使うときだけ読み込む（起動時に外部から取りに行って画面が止まらないように）
+async function ensurePdf(){ if(window.pdfjsLib) return; await new Promise((ok,ng)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'; s.onload=ok; s.onerror=()=>ng(new Error('PDF読み取り部品を読み込めませんでした（通信を確認してください）')); document.head.appendChild(s); }); pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+window.ensurePdf=ensurePdf;
 
 // ===== ナビ =====
 function show(p){ $$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p)); $$('.panel').forEach(x=>x.classList.toggle('on',x.id==='p-'+p)); if(p==='list') renderList(); if(p==='sch') { fillSchRes(); loadSchList(); } if(p==='base'&&window.renderBaseTab) renderBaseTab(); if(p==='diary') renderDiary(); }
@@ -56,7 +58,8 @@ async function boot(){
   // 前回の内容をまず表示（開き直したときに「読み込み中」で待たせない）。そのあと裏で最新に更新
   const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); };
   try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=JSON.parse(LS('hc_cache_day')||'null'); if(cb&&cb.residents){ applyBoot(cb); if(cd&&cd.date===D.date&&cd.data){ D.day=cd.data; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
-  try{ busy(true); const b=await api('bootstrap'); applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); await loadDay(); }
+  const slow=setTimeout(()=>{ if(/読み込み中/.test($('#todayList').textContent)) $('#todayList').innerHTML='<div class="card">読み込みに時間がかかっています。通信状況を確認して、少し待つか<button class="btn" type="button" onclick="location.reload()">再読み込み</button>してください。</div>'; },15000);
+  try{ busy(true); const b=await api('bootstrap'); applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); await loadDay(); clearTimeout(slow); }
   catch(e){ $('#todayList').innerHTML=`<div class="card">接続できません：${e.message}<br><span class="muted">設定を確認してください</span></div>`; }
   finally{ busy(false); }
 }
@@ -321,7 +324,7 @@ async function loadSchList(){
 // --- カイポケ取り込み（PC） ---
 (function(){ const s=$('#impYM'); const now=new Date(); for(let k=-2;k<=2;k++){ const d=new Date(now.getFullYear(),now.getMonth()+k,1); const v=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; s.innerHTML+=`<option value="${v}" ${k===0?'selected':''}>${d.getFullYear()}年${d.getMonth()+1}月</option>`; } })();
 function matchResident(name){ const k=normName(name); return D.residents.find(r=>normName(r['氏名'])===k); }
-async function readPdf(file){ const buf=await file.arrayBuffer(); return pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise; }
+async function readPdf(file){ await ensurePdf(); const buf=await file.arrayBuffer(); return pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise; }
 async function importRows(rows, source, kindLabel){
   const byMonth={}; let matched=0;
   for(const r of rows){ if(!r.user) continue; const res=matchResident(r.user); if(!res) continue; matched++; const ym=r.date.slice(0,7);
@@ -408,7 +411,7 @@ async function doLogin(){ const pw=$('#loginPw').value.trim(); if(!pw) return; $
 $('#loginBtn').onclick=doLogin; $('#loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
 $('#pwSave').onclick=async()=>{ const cur=$('#pwCur').value, nw=$('#pwNew').value.trim(); if(nw.length<6) return toast('6文字以上にしてください'); try{ busy(true); await api('setLoginPassword',{current:cur,pw:nw}); $('#pwStatus').textContent='変更しました。他の端末は次に開くとき新しいパスワードが必要です'; $('#pwCur').value=''; $('#pwNew').value=''; }catch(e){ $('#pwStatus').textContent='変更できません: '+e.message; } finally{ busy(false); } };
 $('#logoutBtn').onclick=()=>{ localStorage.removeItem('hc_login'); location.reload(); };
-$('#cfgLink').onclick=async()=>{ const c={url:$('#cfgUrl').value.trim(),token:$('#cfgToken').value}; if(!c.url) return toast('先にURLを入れてください'); const link=location.origin+location.pathname+'?s='+encCfg(c); // LINEから開くと #以降が落ちることがあるので ?s= にする try{ await navigator.clipboard.writeText(link); $('#cfgStatus').textContent='設定リンクをコピーしました（LINEやメールで自分に送って、他の端末で開いてください）'; }catch(e){ prompt('このリンクをコピーしてください',link); } };
+$('#cfgLink').onclick=async()=>{ const c={url:$('#cfgUrl').value.trim(),token:$('#cfgToken').value}; if(!c.url) return toast('先にURLを入れてください'); const link=location.origin+location.pathname+'?s='+encCfg(c); /* LINEから開くと #以降が落ちることがあるので ?s= にする */ try{ await navigator.clipboard.writeText(link); $('#cfgStatus').textContent='設定リンクをコピーしました（LINEやメールで自分に送って、他の端末で開いてください）'; }catch(e){ prompt('このリンクをコピーしてください',link); } };
 $('#formsText').onchange=()=>{ D.forms=$('#formsText').value.split(/[,、，]/).map(s=>s.trim()).filter(Boolean); LSs('hc_forms',D.forms.join(',')); renderStaffSel(); };
 let editRes=[];
 function renderResTable(){
