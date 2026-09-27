@@ -21,10 +21,12 @@ async function api(action, params={}){
   let lastErr;
   for(let i=0;i<3;i++){ // GASがまれにHTMLを返すことがあるので、JSONでなければ少し待って再試行
     try{
-      const res=await fetch(cfg.url,{method:'POST',credentials:'omit',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action,token:cfg.token,...params})});
+      const body=JSON.stringify({action,token:cfg.token,...params});
+      const q=encodeURIComponent(body); const url=(i===1&&q.length<7000)?cfg.url+(cfg.url.includes('?')?'&':'?')+'p='+q:cfg.url; // 1回失敗したら、途中でGETに変わっても届くようにURLにも載せて再送
+      const res=await fetch(url,{method:'POST',credentials:'omit',headers:{'Content-Type':'text/plain'},body});
       const text=await res.text(); let j; try{ j=JSON.parse(text); }catch(e){ throw new Error('GASの応答が不正です（'+res.status+'）'); }
       if(!j.ok) throw new Error(j.error||'error'); return j.data;
-    }catch(e){ lastErr=e; if(!/応答が不正|Failed to fetch|NetworkError/.test(e.message)) throw e; await new Promise(r=>setTimeout(r,800*(i+1))); }
+    }catch(e){ lastErr=e; if(!/応答が不正|Failed to fetch|NetworkError|途中で切れました|合言葉が違います/.test(e.message)) throw e; await new Promise(r=>setTimeout(r,800*(i+1))); }
   }
   throw lastErr;
 }
