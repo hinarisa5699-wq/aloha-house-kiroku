@@ -311,11 +311,11 @@ async function importLineFile(f, st, ym){
       await api('importExt',{key:ym+'|LINE',rows,append:start>0||i>0}); total+=rows.length;
     }
     await saveCursor();
-    st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → ${total}件を保存しました。予定タブの「取込済みを表示」（LINE）で内容を確認し、違うものは削除してください`;
-    loadDay(); if($('#p-sch').classList.contains('on')) loadExtList();
+    st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → ${total}件を保存しました。設定の「取込済みを表示」（LINE）で内容を確認し、違うものは削除してください`;
+    loadDay(); if($('#p-set').classList.contains('on')) loadExtList();
   }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); }
 }
-$('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
+if($('#impLine')) $('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
 $('#impLine2').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#lineStatus'),$('#lineYM').value); e.target.value=''; if($('#lineRedo')) $('#lineRedo').checked=false; };
 async function showAiStatus(){ try{ const s=await api('aiStatus'); $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; }catch(e){ $('#aiStatus').textContent='確認できません（'+e.message+'）'; } }
 $('#aiKeySave').onclick=async()=>{ const k=$('#aiKey').value.trim(); if(!k) return toast('APIキーを入れてください'); if(!/^sk-ant-/.test(k)&&!confirm('sk-ant- で始まっていません。このまま保存しますか？')) return; try{ busy(true); const s=await api('setApiKey',{key:k}); $('#aiKey').value=''; $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; toast('保存しました'); }catch(e){ toast('失敗: '+e.message); } finally{ busy(false); } };

@@ -222,28 +222,6 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
     <div class="row noprint" style="margin-bottom:8px"><select id="sListRes"><option value="">全員</option></select><button class="btn" id="sReload" style="flex:none">更新</button></div>
     <div id="sList" class="scroll"></div>
   </div>
-  <div class="card">
-    <h2>カイポケのデータから予定を取り込む</h2>
-    <p class="muted">iPhone/iPadでは「ファイル」アプリやLINEのKeepに保存したPDF/CSVを選べます。予定カレンダーと同じファイルを読み込み、登録済みの入居者に一致する予定だけを保存します（同じ月・同じ種類のものは置き換え）。</p>
-    <div class="mform">
-      <label>訪問看護 職員別スケジュール表(予定) PDF<label class="drop">選択／ドロップ<input type="file" id="impNurse" accept=".pdf" multiple></label></label>
-      <label>訪問介護 シフトCSV（対象月：<select id="impYM" style="width:auto;display:inline"></select>）<label class="drop">選択／ドロップ<input type="file" id="impHelper" accept=".csv,.txt"></label></label>
-      <label>デイサービス サービス提供票 PDF<label class="drop">選択／ドロップ<input type="file" id="impDay" accept=".pdf" multiple></label></label>
-    </div>
-    <div class="status" id="impStatus">—</div>
-  </div>
-  <div class="card">
-    <h2>カイポケ介護記録・職員LINEから入居者の記録を取り込む</h2>
-    <p class="muted">介護記録PDFは、カイポケタブレット(通)→介護記録→まとめて印刷（期間：1か月、カテゴリ全部、レイアウト「詳細リスト（日付＞記録種別順）」）で出したもの。登録済み入居者の記録と、ハウス日誌（記録先：<input type="text" id="logUser" value="アロハ花子" style="width:110px;display:inline;padding:3px">）の記録を取り込みます。LINEはトークルーム→設定→トーク履歴を送信 の .txt。AIが入居者ごとの事実だけを抜き出します（対象月のみ）。</p>
-    <div class="mform">
-      <label>対象月<select id="extYM"></select></label>
-      <label>介護記録PDF（カイポケタブレット）<label class="drop">選択／ドロップ<input type="file" id="impKiroku" accept=".pdf" multiple></label></label>
-      <label>職員LINE トーク履歴（.txt）<label class="drop">選択／ドロップ<input type="file" id="impLine" accept=".txt"></label></label>
-    </div>
-    <div class="status" id="extStatus">—</div>
-    <div class="row" style="margin-top:8px"><select id="extFilter"><option value="">全部</option><option value="介護記録">介護記録（本人）</option><option value="ハウス日誌">ハウス日誌</option><option value="LINE">LINE</option><option value="訪看記録">訪看 記録書Ⅱ</option></select><button class="btn" id="extReload" style="flex:none">取込済みを表示</button></div>
-    <div id="extList" class="scroll" style="max-height:420px"></div>
-  </div>
 </section>
 
 <!-- ===== 利用者基本 ===== -->
@@ -260,8 +238,8 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
 <section class="panel" id="p-set">
   <div class="card">
     <h2>接続設定</h2>
-    <div class="field"><div class="lb"><span>GAS ウェブアプリURL</span></div><input type="url" id="cfgUrl" placeholder="https://script.google.com/macros/s/…/exec"></div>
-    <div class="field"><div class="lb"><span>合言葉（APP_TOKEN）</span></div><input type="password" id="cfgToken"></div>
+    <div class="field"><div class="lb"><span>GAS ウェブアプリURL</span></div><input type="url" id="cfgUrl" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></div>
+    <div class="field"><div class="lb"><span>合言葉（APP_TOKEN）</span></div><input type="text" id="cfgToken" autocomplete="off" spellcheck="false" autocapitalize="off"></div>
     <div class="row"><button class="btn pri" id="cfgSave">保存して接続テスト</button><button class="btn" id="cfgLink">設定リンクをコピー</button></div>
     <div class="muted" id="cfgStatus" style="margin-top:6px"></div>
     <div class="muted" style="margin-top:4px">設定リンク＝URLと合言葉入りのアプリURLです。別の端末やブラウザでこのリンクを開くと自動で設定され、ホーム画面追加・ブックマークもこのリンクで行うと設定が消えません。</div>
@@ -278,6 +256,27 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
     <p class="muted">1行に1名。入力画面の「記入者」に出ます。介護記録PDFを取り込むと、記録者名が自動でここに追加されます。</p>
     <textarea id="staffText" style="min-height:90px"></textarea>
     <div class="row" style="margin-top:8px"><button class="btn" id="staffFromExt">取込済みの介護記録から記録者を追加</button><button class="btn pri" id="staffSave">記入者を保存</button></div>
+  </div>
+  <div class="card">
+    <h2>カイポケのデータから予定を取り込む</h2>
+    <p class="muted">iPhone/iPadでは「ファイル」アプリやLINEのKeepに保存したPDF/CSVを選べます。予定カレンダーと同じファイルを読み込み、登録済みの入居者に一致する予定だけを保存します（同じ月・同じ種類のものは置き換え）。</p>
+    <div class="mform">
+      <label>訪問看護 職員別スケジュール表(予定) PDF<label class="drop">選択／ドロップ<input type="file" id="impNurse" accept=".pdf" multiple></label></label>
+      <label>訪問介護 シフトCSV（対象月：<select id="impYM" style="width:auto;display:inline"></select>）<label class="drop">選択／ドロップ<input type="file" id="impHelper" accept=".csv,.txt"></label></label>
+      <label>デイサービス サービス提供票 PDF<label class="drop">選択／ドロップ<input type="file" id="impDay" accept=".pdf" multiple></label></label>
+    </div>
+    <div class="status" id="impStatus">—</div>
+  </div>
+  <div class="card">
+    <h2>カイポケ介護記録から入居者の記録を取り込む</h2>
+    <p class="muted">介護記録PDFは、カイポケタブレット(通)→介護記録→まとめて印刷（期間：1か月、カテゴリ全部、レイアウト「詳細リスト（日付＞記録種別順）」）で出したもの。登録済み入居者の記録と、ハウス日誌（記録先：<input type="text" id="logUser" value="アロハ花子" style="width:110px;display:inline;padding:3px">）の記録を取り込みます。職員LINEは下の「職員LINEトーク履歴の取り込み」から。</p>
+    <div class="mform">
+      <label>対象月<select id="extYM"></select></label>
+      <label>介護記録PDF（カイポケタブレット）<label class="drop">選択／ドロップ<input type="file" id="impKiroku" accept=".pdf" multiple></label></label>
+    </div>
+    <div class="status" id="extStatus">—</div>
+    <div class="row" style="margin-top:8px"><select id="extFilter"><option value="">全部</option><option value="介護記録">介護記録（本人）</option><option value="ハウス日誌">ハウス日誌</option><option value="LINE">LINE</option><option value="訪看記録">訪看 記録書Ⅱ</option></select><button class="btn" id="extReload" style="flex:none">取込済みを表示</button></div>
+    <div id="extList" class="scroll" style="max-height:420px"></div>
   </div>
   <div class="card">
     <h2>アセスメントPDFの取り込み（利用者基本）</h2>
@@ -314,9 +313,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mujh1ghy"></script>
-<script src="kiroku.js?v=mujh1ghy"></script>
-<script src="app.js?v=mujh1ghy"></script>
-<script src="base.js?v=mujh1ghy"></script>
+<script src="parsers.js?v=mujhhtvv"></script>
+<script src="kiroku.js?v=mujhhtvv"></script>
+<script src="app.js?v=mujhhtvv"></script>
+<script src="base.js?v=mujhhtvv"></script>
 </body>
 </html>
