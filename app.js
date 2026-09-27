@@ -14,7 +14,7 @@ const DEFAULT_FORMS='常食,軟菜,一口大,きざみ,ミキサー,ソフト食
 const CK=k=>{try{const m=document.cookie.match(new RegExp('(?:^|; )'+k+'=([^;]*)'));return m?decodeURIComponent(m[1]):null}catch(e){return null}}, CKs=(k,v)=>{try{document.cookie=k+'='+encodeURIComponent(v)+';max-age=34560000;path=/;SameSite=Lax'}catch(e){}};
 const encCfg=c=>btoa(unescape(encodeURIComponent(JSON.stringify({u:c.url,t:c.token})))).replace(/=+$/,''), decCfg=s=>{try{const o=JSON.parse(decodeURIComponent(escape(atob(s))));return o&&o.u?{url:o.u,token:o.t||''}:null}catch(e){return null}};
 let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')||''};
-(function(){ const m=location.hash.match(/[#&]s=([^&]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; history.replaceState(null,'',location.pathname+location.search); } if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
+(function(){ const m=(location.search+location.hash).match(/[?#&]s=([^&#]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; history.replaceState(null,'',location.pathname); } if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
   if(!cfg.url) throw new Error('設定でGASのURLを入れてください');
@@ -408,7 +408,7 @@ async function doLogin(){ const pw=$('#loginPw').value.trim(); if(!pw) return; $
 $('#loginBtn').onclick=doLogin; $('#loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
 $('#pwSave').onclick=async()=>{ const cur=$('#pwCur').value, nw=$('#pwNew').value.trim(); if(nw.length<6) return toast('6文字以上にしてください'); try{ busy(true); await api('setLoginPassword',{current:cur,pw:nw}); $('#pwStatus').textContent='変更しました。他の端末は次に開くとき新しいパスワードが必要です'; $('#pwCur').value=''; $('#pwNew').value=''; }catch(e){ $('#pwStatus').textContent='変更できません: '+e.message; } finally{ busy(false); } };
 $('#logoutBtn').onclick=()=>{ localStorage.removeItem('hc_login'); location.reload(); };
-$('#cfgLink').onclick=async()=>{ const c={url:$('#cfgUrl').value.trim(),token:$('#cfgToken').value}; if(!c.url) return toast('先にURLを入れてください'); const link=location.origin+location.pathname+'#s='+encCfg(c); try{ await navigator.clipboard.writeText(link); $('#cfgStatus').textContent='設定リンクをコピーしました（LINEやメールで自分に送って、他の端末で開いてください）'; }catch(e){ prompt('このリンクをコピーしてください',link); } };
+$('#cfgLink').onclick=async()=>{ const c={url:$('#cfgUrl').value.trim(),token:$('#cfgToken').value}; if(!c.url) return toast('先にURLを入れてください'); const link=location.origin+location.pathname+'?s='+encCfg(c); // LINEから開くと #以降が落ちることがあるので ?s= にする try{ await navigator.clipboard.writeText(link); $('#cfgStatus').textContent='設定リンクをコピーしました（LINEやメールで自分に送って、他の端末で開いてください）'; }catch(e){ prompt('このリンクをコピーしてください',link); } };
 $('#formsText').onchange=()=>{ D.forms=$('#formsText').value.split(/[,、，]/).map(s=>s.trim()).filter(Boolean); LSs('hc_forms',D.forms.join(',')); renderStaffSel(); };
 let editRes=[];
 function renderResTable(){
