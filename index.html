@@ -250,8 +250,7 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
 <section class="panel" id="p-base">
   <div class="card noprint">
     <div class="row" style="flex-wrap:wrap"><select id="bRes" style="flex:1 1 200px"></select><button class="btn" id="bPrintSheet" style="flex:none">基本シート印刷</button><button class="btn" id="bPrintTrain" style="flex:none">訓練メニュー印刷</button></div>
-    <div class="row" style="flex-wrap:wrap;margin-top:6px"><button class="btn" id="bPrintSheetAll" style="flex:none">全員の基本シート</button><button class="btn" id="bPrintTrainAll" style="flex:none">全員の訓練メニュー（表紙付き）</button><button class="btn" id="bCover" style="flex:none">表紙の文面</button><label class="btn" style="flex:none;cursor:pointer">アセスメントPDF取込<input type="file" id="asPdf" accept=".pdf" style="display:none"></label></div>
-    <div class="muted" id="asStatus" style="margin-top:4px">アセスメントPDF：カイポケタブレット(居)→簡易版アセスメント→印刷プレビューで保存したPDF。家族・緊急連絡先・既往/現病・認定情報・利用サービス（関係先）が入ります。</div>
+    <div class="row" style="flex-wrap:wrap;margin-top:6px"><button class="btn" id="bPrintSheetAll" style="flex:none">全員の基本シート</button><button class="btn" id="bPrintTrainAll" style="flex:none">全員の訓練メニュー（表紙付き）</button><button class="btn" id="bCover" style="flex:none">表紙の文面</button></div>
     <div id="coverForm" class="hide" style="margin-top:8px"></div>
   </div>
   <div id="baseOut"></div>
@@ -281,6 +280,14 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
     <div class="row" style="margin-top:8px"><button class="btn" id="staffFromExt">取込済みの介護記録から記録者を追加</button><button class="btn pri" id="staffSave">記入者を保存</button></div>
   </div>
   <div class="card">
+    <h2>アセスメントPDFの取り込み（利用者基本）</h2>
+    <p class="muted">カイポケタブレット(居)→簡易版アセスメント→印刷プレビューで保存したPDF。氏名で入居者を判定し、家族・緊急連絡先・既往/現病・認定情報・利用サービス（関係先）を「基本」タブに入れます。</p>
+    <div class="mform">
+      <label>アセスメントPDF<label class="drop">選択／ドロップ<input type="file" id="asPdf" accept=".pdf"></label></label>
+    </div>
+    <div class="status" id="asStatus">—</div>
+  </div>
+  <div class="card">
     <h2>職員LINEトーク履歴の取り込み（AI）</h2>
     <p class="muted">LINEのトークルーム → 右上メニュー → その他 → トーク履歴を送信 で出る .txt を選ぶと、対象月の投稿から入居者ごとの事実（服薬・食事・受診・体調・家族など）をAIが抜き出し、「他部署の記録」に入ります。AIを使うため Anthropic のAPIキーが必要です（1回の取り込みで数十円程度）。</p>
     <div class="field"><div class="lb"><span>Anthropic APIキー（sk-ant-…）</span><span id="aiStatus" class="muted"></span></div><div class="row"><input type="password" id="aiKey" placeholder="設定済みなら空のままで可"><button class="btn" id="aiKeySave" style="flex:none">保存</button></div></div>
@@ -300,16 +307,16 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
 
 </main>
 <nav class="tabs noprint">
-  <button data-p="today" class="on"><span class="ic">☑</span>今日</button>
+  <button data-p="today" class="on"><span class="ic">☑</span>今日の食事量</button>
   <button data-p="list"><span class="ic">▤</span>一覧</button>
   <button data-p="sch"><span class="ic">📅</span>予定</button>
   <button data-p="base"><span class="ic">👤</span>基本</button>
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mujgf05r"></script>
-<script src="kiroku.js?v=mujgf05r"></script>
-<script src="app.js?v=mujgf05r"></script>
-<script src="base.js?v=mujgf05r"></script>
+<script src="parsers.js?v=mujh1ghy"></script>
+<script src="kiroku.js?v=mujh1ghy"></script>
+<script src="app.js?v=mujh1ghy"></script>
+<script src="base.js?v=mujh1ghy"></script>
 </body>
 </html>
