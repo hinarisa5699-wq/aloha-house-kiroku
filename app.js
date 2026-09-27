@@ -37,12 +37,12 @@ let D={date:todayStr(), residents:[], allResidents:[], staff:[], contacts:[], da
 if(window.pdfjsLib){ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
 
 // ===== ナビ =====
-function show(p){ $$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p)); $$('.panel').forEach(x=>x.classList.toggle('on',x.id==='p-'+p)); if(p==='list') renderList(); if(p==='sch') { fillSchRes(); loadSchList(); } if(p==='base'&&window.renderBaseTab) renderBaseTab(); }
+function show(p){ $$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p)); $$('.panel').forEach(x=>x.classList.toggle('on',x.id==='p-'+p)); if(p==='list') renderList(); if(p==='sch') { fillSchRes(); loadSchList(); } if(p==='base'&&window.renderBaseTab) renderBaseTab(); if(p==='diary') renderDiary(); }
 $$('nav.tabs button').forEach(b=>b.onclick=()=>show(b.dataset.p));
 $('#date').value=D.date;
-$('#date').onchange=e=>{D.date=e.target.value;loadDay();};
+$('#date').onchange=e=>{D.date=e.target.value;loadDay(); if($('#p-diary').classList.contains('on')) renderDiary();};
 $('#dPrev').onclick=()=>shiftDate(-1); $('#dNext').onclick=()=>shiftDate(1);
-function shiftDate(n){const d=new Date(D.date+'T00:00:00');d.setDate(d.getDate()+n);D.date=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;$('#date').value=D.date;loadDay();}
+function shiftDate(n){const d=new Date(D.date+'T00:00:00');d.setDate(d.getDate()+n);D.date=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;$('#date').value=D.date;loadDay(); if($('#p-diary').classList.contains('on')) renderDiary(); if($('#p-list').classList.contains('on')) renderList();}
 function dateLabel(s){const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`;}
 
 // ===== 読み込み =====
@@ -80,10 +80,11 @@ function renderTodaySch(){
   const el=$('#todaySch'); if(!el) return;
   const ids=new Set(D.residents.map(r=>r.id)); const nm=Object.fromEntries(D.residents.map(r=>[r.id,r]));
   const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
-  const list=(D.day.schedules||[]).filter(s=>ids.has(s['利用者ID'])).sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始']))||String(nm[a['利用者ID']]['部屋']).localeCompare(String(nm[b['利用者ID']]['部屋'])));
+  const HOUSE={id:'','部屋':'—','氏名':'アロハハウス'}; nm['']=HOUSE;
+  const list=(D.day.schedules||[]).filter(s=>ids.has(s['利用者ID'])||s['利用者ID']==='').sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始']))||String(nm[a['利用者ID']]['部屋']).localeCompare(String(nm[b['利用者ID']]['部屋'])));
   if(!list.length){ el.innerHTML='<span class="muted">予定なし</span>'; return; }
   const body=(s)=>{ const c=s['内容']||''; return (c.startsWith(s['種別'])||c.includes(s['種別']))?c:(s['種別']+(c?' '+c:'')); };
-  el.innerHTML='<table class="grid" style="width:100%;font-size:13px"><tr><th style="width:92px">時間</th><th style="width:34px">部屋</th><th style="width:110px">氏名</th><th style="text-align:left">予定</th><th style="width:70px">担当</th></tr>'+list.map(s=>{ const r=nm[s['利用者ID']]; return `<tr class="sch-row" data-id="${r.id}" style="cursor:pointer"><td>${s['開始']||''}${s['終了']?'-'+s['終了']:''}</td><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td style="text-align:left"><span class="sch ${schCls(s)}">${esc(body(s))}</span></td><td>${esc(s['担当']||'')}</td></tr>`; }).join('')+'</table>';
+  el.innerHTML='<table class="grid" style="width:100%;font-size:13px"><tr><th style="width:92px">時間</th><th style="width:34px">部屋</th><th style="width:110px">氏名</th><th style="text-align:left">予定</th><th style="width:70px">担当</th></tr>'+list.map(s=>{ const r=nm[s['利用者ID']]; return `<tr class="${r.id?'sch-row':''}" data-id="${r.id}" style="${r.id?'cursor:pointer':'background:#fff7e6'}"><td>${s['開始']||''}${s['終了']?'-'+s['終了']:''}</td><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td style="text-align:left"><span class="sch ${schCls(s)}">${esc(body(s))}</span></td><td>${esc(s['担当']||'')}</td></tr>`; }).join('')+'</table>';
   $$('#todaySch .sch-row').forEach(tr=>tr.onclick=()=>openEntry(tr.dataset.id));
 }
 function renderToday(){
@@ -166,6 +167,36 @@ $('#saveNote').onclick=async()=>{
   const rec={'日付':D.date,'時刻':$('#nTime').value||`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`,'利用者ID':r.id,'氏名':r['氏名'],'種別':$('#nKind').value,'内容':text,'記入者':staff};
   try{ busy(true); const saved=await api('saveNote',{record:rec}); D.day.notes.push(saved); $('#nText').value=''; $('#nTime').value=''; renderNotes(); renderToday(); toast('追加しました'); }catch(e){toast('失敗: '+e.message);} finally{busy(false);}
 };
+
+// ===== 日誌 =====
+const DKINDS=['排泄','服薬','食事','体調','受診・往診','家族','様子','連絡','その他'];
+$('#dMode').onchange=()=>{ $('#dRes').classList.toggle('hide',$('#dMode').value!=='month'); renderDiary(); };
+$('#dRes').onchange=()=>renderDiary();
+$('#dPrint').onclick=()=>window.print();
+function diaryEntry(e,showName){ return `<div class="n" data-did="${e.id}"><div class="m">${e['時刻']||''} ${esc(e['種別']||'')}${showName?'　'+esc(e['氏名']):''}　<span class="muted">${esc(e['出所']||'')}${e['記入者']&&e['記入者']!=='LINE'?' '+esc(e['記入者']):''}</span> <button class="btn danger noprint" data-ddel="${e.id}" style="padding:1px 8px;font-size:11px;float:right">削除</button></div>${esc(e['内容'])}</div>`; }
+async function renderDiary(){
+  const out=$('#diaryOut'); const mode=$('#dMode').value;
+  $('#dRes').innerHTML=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join('');
+  out.innerHTML='<div class="muted">読み込み中…</div>';
+  try{
+    if(mode==='day'){
+      const list=await api('diaryList',{date:D.date}); const sortT=(a,b)=>(a['時刻']||'').localeCompare(b['時刻']||'');
+      out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">個人日誌　${dateLabel(D.date)}</h2>`+D.residents.map(r=>{ const es=list.filter(e=>e['利用者ID']===r.id).sort(sortT);
+        return `<div class="card" style="page-break-inside:avoid"><div class="row" style="align-items:center"><h2 style="margin:0;flex:1;font-size:14px">${esc(r['部屋'])}　${esc(r['氏名'])}</h2><button class="btn noprint" data-dadd="${r.id}" style="flex:none;padding:4px 10px">＋ 追加</button></div><div class="dform hide" data-dform="${r.id}" style="margin-top:6px"><div class="row"><input type="time" data-k="時刻" style="flex:none;width:110px"><select data-k="種別" style="flex:none;width:120px">${DKINDS.map(k=>`<option>${k}</option>`).join('')}</select></div><textarea data-k="内容" placeholder="記録（事実を短く）" style="min-height:64px;margin-top:4px"></textarea><div class="row" style="margin-top:4px"><button class="btn pri" data-dsave="${r.id}" style="flex:none">保存</button><button class="btn" data-dcancel="${r.id}" style="flex:none">閉じる</button></div></div>${es.length?es.map(e=>diaryEntry(e,false)).join(''):'<div class="muted">記録なし</div>'}</div>`; }).join('');
+    } else {
+      const rid=$('#dRes').value; const r=D.residents.find(x=>x.id===rid); if(!r) return; const ym=D.date.slice(0,7);
+      const list=(await api('diaryList',{ym,residentId:rid})).sort((a,b)=>(a['日付']+a['時刻']).localeCompare(b['日付']+b['時刻']));
+      const byDay={}; list.forEach(e=>{ (byDay[e['日付']]=byDay[e['日付']]||[]).push(e); });
+      const [y,mo]=ym.split('-').map(Number);
+      out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">${esc(r['氏名'])} 様　個人日誌　${y}年${mo}月</h2>`+(Object.keys(byDay).length?Object.keys(byDay).sort().map(d=>`<div class="card" style="page-break-inside:avoid"><h2 style="margin:0 0 4px;font-size:14px">${dateLabel(d)}</h2>${byDay[d].map(e=>diaryEntry(e,false)).join('')}</div>`).join(''):'<div class="card muted">この月の日誌はありません</div>');
+    }
+    $$('#diaryOut [data-dadd]').forEach(b=>b.onclick=()=>{ const f=$(`#diaryOut [data-dform="${b.dataset.dadd}"]`); f.classList.toggle('hide'); if(!f.querySelector('[data-k="時刻"]').value){ const n=new Date(); f.querySelector('[data-k="時刻"]').value=`${pad(n.getHours())}:${pad(n.getMinutes())}`; } });
+    $$('#diaryOut [data-dcancel]').forEach(b=>b.onclick=()=>$(`#diaryOut [data-dform="${b.dataset.dcancel}"]`).classList.add('hide'));
+    $$('#diaryOut [data-dsave]').forEach(b=>b.onclick=async()=>{ const rid=b.dataset.dsave; const r=D.residents.find(x=>x.id===rid); const f=$(`#diaryOut [data-dform="${rid}"]`); const text=f.querySelector('[data-k="内容"]').value.trim(); if(!text) return toast('内容を入れてください'); const staff=$('#staff').value||LS('hc_staff')||''; if(!staff) return toast('入力画面で記入者を選んでください');
+      try{ busy(true); await api('saveDiary',{record:{'日付':D.date,'時刻':f.querySelector('[data-k="時刻"]').value,'利用者ID':rid,'氏名':r['氏名'],'種別':f.querySelector('[data-k="種別"]').value,'内容':text,'記入者':staff,'出所':'手入力'}}); toast('保存しました'); renderDiary(); }catch(e){ toast('失敗: '+e.message); } finally{ busy(false); } });
+    $$('#diaryOut [data-ddel]').forEach(b=>b.onclick=async()=>{ if(!confirm('この日誌を削除しますか？')) return; try{ await api('saveDiary',{record:{id:b.dataset.ddel,_delete:true}}); renderDiary(); }catch(e){ toast('失敗: '+e.message); } });
+  }catch(e){ out.innerHTML='読み込み失敗: '+esc(e.message); }
+}
 
 // ===== 月間カレンダー描画 =====
 function calendarHtml(ym, evByDay, title, sub, legend){
@@ -331,14 +362,22 @@ async function importLineFile(f, st, ym){
     if(!picked.length){ await saveCursor(); st.textContent=`新しい投稿${fresh.length}通に入居者に関するものはありませんでした（次回はこの続きから読みます）`; return; }
     const msg=start>0?`${ym}のLINE投稿 新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`;
     if(!confirm(msg)) { st.textContent='中止しました'; return; }
-    const CH=60; let total=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
+    const CH=60; let total=0, totalDiary=0, totalSch=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
     for(let i=0;i<picked.length;i+=CH){ st.textContent=`AI抽出中… ${Math.min(i+CH,picked.length)}/${picked.length}通`;
       const res=await api('extractLine',{residents:names,messages:picked.slice(i,i+CH)});
       const rows=res.items.map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.content,'記録者':'','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
       await api('importExt',{key:ym+'|LINE',rows,append:start>0||i>0}); total+=rows.length;
+      // 個人日誌
+      const drows=(res.diary||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.text,'記入者':'LINE','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
+      if(drows.length){ await api('importDiary',{key:ym+'|LINE',rows:drows,append:start>0||i>0}); totalDiary+=drows.length; }
+      // 予定（入居者個人／アロハハウス全体）：追加のみ
+      const kindMap=k=>({'受診':'受診','往診':'往診','入院':'入院','退院':'退院','面会':'面会','外出':'外出','行事':'行事','業者':'業者','会議':'会議'})[k]||'その他';
+      const srows=(res.schedules||[]).map(it=>{ if(it.resident==='アロハハウス') return {'日付':it.date,'利用者ID':'','氏名':'アロハハウス','種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}; const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}:null; }).filter(Boolean);
+      const byYm={}; srows.forEach(r=>{ (byYm[r['日付'].slice(0,7)]=byYm[r['日付'].slice(0,7)]||[]).push(r); });
+      for(const [sym,list] of Object.entries(byYm)){ const a=await api('importSchedules',{ym:sym,source:'LINE',rows:list,append:true}); totalSch+=a.added; }
     }
     await saveCursor();
-    st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → ${total}件を保存しました。設定の「取込済みを表示」（LINE）で内容を確認し、違うものは削除してください`;
+    st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件を保存しました。日誌タブと予定タブで確認し、違うものは削除してください`;
     loadDay(); if($('#p-set').classList.contains('on')) loadExtList();
   }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); }
 }

@@ -227,6 +227,19 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
 </section>
 
 <!-- ===== 利用者基本 ===== -->
+<!-- ===== 日誌 ===== -->
+<section class="panel" id="p-diary">
+  <div class="card noprint">
+    <div class="row" style="flex-wrap:wrap;align-items:center">
+      <select id="dMode" style="flex:1 1 200px"><option value="day">この日の全員</option><option value="month">1人の1か月</option></select>
+      <select id="dRes" class="hide" style="flex:1 1 160px"></select>
+      <button class="btn" id="dPrint" style="flex:none">印刷</button>
+    </div>
+    <div class="muted" style="margin-top:4px">職員LINEを取り込むと、投稿がAIで入居者ごとの日誌文に整えられてここに入ります（出所：LINE）。手で書き足すこともできます。日付は上の「‹ ›」で動かします。</div>
+  </div>
+  <div id="diaryOut"><div class="muted">読み込み中…</div></div>
+</section>
+
 <section class="panel" id="p-base">
   <div class="card noprint">
     <div class="row" style="flex-wrap:wrap"><select id="bRes" style="flex:1 1 200px"></select><button class="btn" id="bPrintSheet" style="flex:none">基本シート印刷</button><button class="btn" id="bPrintTrain" style="flex:none">訓練メニュー印刷</button></div>
@@ -310,14 +323,15 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
 <nav class="tabs noprint">
   <button data-p="today" class="on"><span class="ic">☑</span>今日の食事量</button>
   <button data-p="list"><span class="ic">▤</span>一覧</button>
-  <button data-p="sch"><span class="ic">📅</span>予定</button>
+  <button data-p="sch"><span class="ic">🕒</span>予定</button>
+  <button data-p="diary"><span class="ic">📝</span>日誌</button>
   <button data-p="base"><span class="ic">👤</span>基本</button>
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mujlthdo"></script>
-<script src="kiroku.js?v=mujlthdo"></script>
-<script src="app.js?v=mujlthdo"></script>
-<script src="base.js?v=mujlthdo"></script>
+<script src="parsers.js?v=mujm2hhr"></script>
+<script src="kiroku.js?v=mujm2hhr"></script>
+<script src="app.js?v=mujm2hhr"></script>
+<script src="base.js?v=mujm2hhr"></script>
 </body>
 </html>
