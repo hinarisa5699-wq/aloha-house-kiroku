@@ -289,23 +289,33 @@ async function importLineFile(f, st, ym){
   try{ busy(true); const text=new TextDecoder('utf-8').decode(await f.arrayBuffer());
     const parsed=parseLine(text); const all=parsed.filter(g=>g.y===y&&g.m===m);
     const names=D.residents.map(r=>r['氏名']); const sns=names.map(surnameOf).filter(s=>s.length>=2);
-    const picked=all.filter(g=>{ const t=g.text; if(/^(画像|動画|スタンプ|\[投票|\[投票終了|.*をグループに追加しました。?$|メッセージの送信を取り消しました)/.test(t)) return false; if(/https?:\/\//.test(t)&&t.length<80) return false; return sns.some(s=>t.indexOf(s)>=0) || RE_HOUSE_KW.test(t) || /オンコール/.test(g.sender||''); })
+    // 前回どこまで読んだか（月ごとのカーソル）。最後に読んだ投稿を探して、その続きだけ対象にする
+    const redo=$('#lineRedo')&&$('#lineRedo').checked; const curKey='line_cursor:'+ym; const cur=redo?null:profOf('',curKey);
+    const sig=g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''} ${(g.sender||'')}|${String(g.text).slice(0,120)}`;
+    let start=0;
+    if(cur&&cur.last){ let idx=-1; for(let k=Math.min(cur.n||all.length,all.length)-1;k>=0;k--){ if(sig(all[k])===cur.last){ idx=k; break; } } if(idx<0) idx=all.findIndex(g=>sig(g)===cur.last); if(idx>=0) start=idx+1; else if(cur.lastAt){ start=all.findIndex(g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''}`>cur.lastAt); if(start<0) start=all.length; } }
+    const fresh=all.slice(start);
+    const picked=fresh.filter(g=>{ const t=g.text; if(/^(画像|動画|スタンプ|\[投票|\[投票終了|.*をグループに追加しました。?$|メッセージの送信を取り消しました)/.test(t)) return false; if(/https?:\/\//.test(t)&&t.length<80) return false; return sns.some(s=>t.indexOf(s)>=0) || RE_HOUSE_KW.test(t) || /オンコール/.test(g.sender||''); })
       .map(g=>({date:`${g.y}-${pad(g.m)}-${pad(g.d)}`,time:g.time,sender:g.sender,text:g.text.slice(0,600)}));
     if(!all.length){ const months=[...new Set(parsed.map(g=>`${g.y}-${pad(g.m)}`))].sort(); throw new Error(`${ym}の投稿がありません（このファイルにある月：${months.slice(-6).join('、')}）`); }
-    if(!picked.length) throw new Error(`${ym}の対象になりそうな投稿がありません（全${all.length}通）`);
-    if(!confirm(`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`)) { st.textContent='中止しました'; return; }
+    const saveCursor=async()=>{ const last=all[all.length-1]; await saveProf('',curKey,{n:all.length,last:sig(last),lastAt:`${last.y}-${pad(last.m)}-${pad(last.d)} ${last.time||''}`,at:new Date().toISOString()}); };
+    if(!fresh.length){ st.textContent=`前回（${all.length}通目まで）以降の新しい投稿はありません`; return; }
+    if(!picked.length){ await saveCursor(); st.textContent=`新しい投稿${fresh.length}通に入居者に関するものはありませんでした（次回はこの続きから読みます）`; return; }
+    const msg=start>0?`${ym}のLINE投稿 新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`;
+    if(!confirm(msg)) { st.textContent='中止しました'; return; }
     const CH=60; let total=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
     for(let i=0;i<picked.length;i+=CH){ st.textContent=`AI抽出中… ${Math.min(i+CH,picked.length)}/${picked.length}通`;
       const res=await api('extractLine',{residents:names,messages:picked.slice(i,i+CH)});
       const rows=res.items.map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.content,'記録者':'','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
-      await api('importExt',{key:ym+'|LINE',rows,append:i>0}); total+=rows.length;
+      await api('importExt',{key:ym+'|LINE',rows,append:start>0||i>0}); total+=rows.length;
     }
-    st.textContent=`LINE ${picked.length}通 → ${total}件を保存しました。予定タブの「取込済みを表示」（LINE）で内容を確認し、違うものは削除してください`;
+    await saveCursor();
+    st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → ${total}件を保存しました。予定タブの「取込済みを表示」（LINE）で内容を確認し、違うものは削除してください`;
     loadDay(); if($('#p-sch').classList.contains('on')) loadExtList();
   }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); }
 }
 $('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
-$('#impLine2').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#lineStatus'),$('#lineYM').value); e.target.value=''; };
+$('#impLine2').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#lineStatus'),$('#lineYM').value); e.target.value=''; if($('#lineRedo')) $('#lineRedo').checked=false; };
 async function showAiStatus(){ try{ const s=await api('aiStatus'); $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; }catch(e){ $('#aiStatus').textContent='確認できません（'+e.message+'）'; } }
 $('#aiKeySave').onclick=async()=>{ const k=$('#aiKey').value.trim(); if(!k) return toast('APIキーを入れてください'); if(!/^sk-ant-/.test(k)&&!confirm('sk-ant- で始まっていません。このまま保存しますか？')) return; try{ busy(true); const s=await api('setApiKey',{key:k}); $('#aiKey').value=''; $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; toast('保存しました'); }catch(e){ toast('失敗: '+e.message); } finally{ busy(false); } };
 $('#extReload').onclick=loadExtList; $('#extFilter').onchange=loadExtList;
