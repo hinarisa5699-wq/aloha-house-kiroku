@@ -188,7 +188,7 @@ $('#saveNote').onclick=async()=>{
 const DKINDS=['排泄','服薬','食事','体調','受診・往診','家族','様子','連絡','その他'];
 $('#dMode').onchange=()=>{ $('#dRes').classList.toggle('hide',$('#dMode').value!=='month'); renderDiary(); };
 $('#dRes').onchange=()=>renderDiary();
-$('#dPrint').onclick=()=>window.print();
+$('#dPrint').onclick=()=>{ document.body.classList.add('print-diary'); const off=()=>document.body.classList.remove('print-diary'); window.addEventListener('afterprint',off,{once:true}); setTimeout(()=>window.print(),50); setTimeout(off,60000); };
 function diaryEntry(e,showName){ return `<div class="n" data-did="${e.id}"><div class="m">${e['時刻']||''} ${esc(e['種別']||'')}${showName?'　'+esc(e['氏名']):''}　<span class="muted">${esc(e['出所']||'')}${e['記入者']&&e['記入者']!=='LINE'?' '+esc(e['記入者']):''}</span> <button class="btn danger noprint" data-ddel="${e.id}" style="padding:1px 8px;font-size:11px;float:right">削除</button></div>${esc(e['内容'])}</div>`; }
 async function renderDiary(){
   const out=$('#diaryOut'); const mode=$('#dMode').value;
@@ -197,14 +197,14 @@ async function renderDiary(){
   try{
     if(mode==='day'){
       const list=await api('diaryList',{date:D.date}); const sortT=(a,b)=>(a['時刻']||'').localeCompare(b['時刻']||'');
-      out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">個人日誌　${dateLabel(D.date)}</h2>`+D.residents.map(r=>{ const es=list.filter(e=>e['利用者ID']===r.id).sort(sortT);
+      out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">アロハハウス　個人日誌　${D.date.slice(0,4)}年${dateLabel(D.date)}</h2>`+D.residents.map(r=>{ const es=list.filter(e=>e['利用者ID']===r.id).sort(sortT);
         return `<div class="card" style="page-break-inside:avoid"><div class="row" style="align-items:center"><h2 style="margin:0;flex:1;font-size:14px">${esc(r['部屋'])}　${esc(r['氏名'])}</h2><button class="btn noprint" data-dadd="${r.id}" style="flex:none;padding:4px 10px">＋ 追加</button></div><div class="dform hide" data-dform="${r.id}" style="margin-top:6px"><div class="row"><input type="time" data-k="時刻" style="flex:none;width:110px"><select data-k="種別" style="flex:none;width:120px">${DKINDS.map(k=>`<option>${k}</option>`).join('')}</select></div><textarea data-k="内容" placeholder="記録（事実を短く）" style="min-height:64px;margin-top:4px"></textarea><div class="row" style="margin-top:4px"><button class="btn pri" data-dsave="${r.id}" style="flex:none">保存</button><button class="btn" data-dcancel="${r.id}" style="flex:none">閉じる</button></div></div>${es.length?es.map(e=>diaryEntry(e,false)).join(''):'<div class="muted">記録なし</div>'}</div>`; }).join('');
     } else {
       const rid=$('#dRes').value; const r=D.residents.find(x=>x.id===rid); if(!r) return; const ym=D.date.slice(0,7);
       const list=(await api('diaryList',{ym,residentId:rid})).sort((a,b)=>(a['日付']+a['時刻']).localeCompare(b['日付']+b['時刻']));
       const byDay={}; list.forEach(e=>{ (byDay[e['日付']]=byDay[e['日付']]||[]).push(e); });
       const [y,mo]=ym.split('-').map(Number);
-      out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">${esc(r['氏名'])} 様　個人日誌　${y}年${mo}月</h2>`+(Object.keys(byDay).length?Object.keys(byDay).sort().map(d=>`<div class="card" style="page-break-inside:avoid"><h2 style="margin:0 0 4px;font-size:14px">${dateLabel(d)}</h2>${byDay[d].map(e=>diaryEntry(e,false)).join('')}</div>`).join(''):'<div class="card muted">この月の日誌はありません</div>');
+      out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">アロハハウス　個人日誌　${esc(r['氏名'])} 様　${y}年${mo}月</h2>`+(Object.keys(byDay).length?Object.keys(byDay).sort().map(d=>`<div class="card" style="page-break-inside:avoid"><h2 style="margin:0 0 4px;font-size:14px">${dateLabel(d)}</h2>${byDay[d].map(e=>diaryEntry(e,false)).join('')}</div>`).join(''):'<div class="card muted">この月の日誌はありません</div>');
     }
     $$('#diaryOut [data-dadd]').forEach(b=>b.onclick=()=>{ const f=$(`#diaryOut [data-dform="${b.dataset.dadd}"]`); f.classList.toggle('hide'); if(!f.querySelector('[data-k="時刻"]').value){ const n=new Date(); f.querySelector('[data-k="時刻"]').value=`${pad(n.getHours())}:${pad(n.getMinutes())}`; } });
     $$('#diaryOut [data-dcancel]').forEach(b=>b.onclick=()=>$(`#diaryOut [data-dform="${b.dataset.dcancel}"]`).classList.add('hide'));
