@@ -10,7 +10,11 @@ const WD=['日','月','火','水','木','金','土'];
 const MEALS=['朝食','昼食','夕食','おやつ'];
 const SYMS=['むせ','咳込み','嘔気・嘔吐','残食多い','食欲低下','傾眠','拒食','介助で摂取','発熱','体調不良','その他'];
 const DEFAULT_FORMS='常食,軟菜,一口大,きざみ,ミキサー,ソフト食,粥,その他';
-let cfg={url:LS('hc_url')||'',token:LS('hc_token')||''};
+// 接続設定：localStorage を主、Cookie(400日)とURLの #s= を予備にして、消えても復元できるようにする
+const CK=k=>{try{const m=document.cookie.match(new RegExp('(?:^|; )'+k+'=([^;]*)'));return m?decodeURIComponent(m[1]):null}catch(e){return null}}, CKs=(k,v)=>{try{document.cookie=k+'='+encodeURIComponent(v)+';max-age=34560000;path=/;SameSite=Lax'}catch(e){}};
+const encCfg=c=>btoa(unescape(encodeURIComponent(JSON.stringify({u:c.url,t:c.token})))).replace(/=+$/,''), decCfg=s=>{try{const o=JSON.parse(decodeURIComponent(escape(atob(s))));return o&&o.u?{url:o.u,token:o.t||''}:null}catch(e){return null}};
+let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')||''};
+(function(){ const m=location.hash.match(/[#&]s=([^&]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; history.replaceState(null,'',location.pathname+location.search); } if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
   if(!cfg.url) throw new Error('設定でGASのURLを入れてください');
@@ -290,7 +294,7 @@ async function importLineFile(f, st, ym){
     if(!all.length){ const months=[...new Set(parsed.map(g=>`${g.y}-${pad(g.m)}`))].sort(); throw new Error(`${ym}の投稿がありません（このファイルにある月：${months.slice(-6).join('、')}）`); }
     if(!picked.length) throw new Error(`${ym}の対象になりそうな投稿がありません（全${all.length}通）`);
     if(!confirm(`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`)) { st.textContent='中止しました'; return; }
-    const CH=120; let total=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
+    const CH=60; let total=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
     for(let i=0;i<picked.length;i+=CH){ st.textContent=`AI抽出中… ${Math.min(i+CH,picked.length)}/${picked.length}通`;
       const res=await api('extractLine',{residents:names,messages:picked.slice(i,i+CH)});
       const rows=res.items.map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.content,'記録者':'','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
@@ -302,7 +306,7 @@ async function importLineFile(f, st, ym){
 }
 $('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
 $('#impLine2').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#lineStatus'),$('#lineYM').value); e.target.value=''; };
-async function showAiStatus(){ try{ const s=await api('aiStatus'); $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; }catch(e){} }
+async function showAiStatus(){ try{ const s=await api('aiStatus'); $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; }catch(e){ $('#aiStatus').textContent='確認できません（'+e.message+'）'; } }
 $('#aiKeySave').onclick=async()=>{ const k=$('#aiKey').value.trim(); if(!k) return toast('APIキーを入れてください'); if(!/^sk-ant-/.test(k)&&!confirm('sk-ant- で始まっていません。このまま保存しますか？')) return; try{ busy(true); const s=await api('setApiKey',{key:k}); $('#aiKey').value=''; $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; toast('保存しました'); }catch(e){ toast('失敗: '+e.message); } finally{ busy(false); } };
 $('#extReload').onclick=loadExtList; $('#extFilter').onchange=loadExtList;
 async function loadExtList(){
@@ -315,7 +319,8 @@ async function loadExtList(){
 }
 
 // ===== 設定 =====
-$('#cfgSave').onclick=async()=>{ cfg.url=$('#cfgUrl').value.trim(); cfg.token=$('#cfgToken').value; LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); $('#cfgStatus').textContent='接続中…'; try{ await api('ping'); $('#cfgStatus').textContent='接続OK'; await boot(); }catch(e){ $('#cfgStatus').textContent='接続できません: '+e.message; } };
+$('#cfgSave').onclick=async()=>{ cfg.url=$('#cfgUrl').value.trim(); cfg.token=$('#cfgToken').value; LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); $('#cfgStatus').textContent='接続中…'; try{ await api('ping'); $('#cfgStatus').textContent='接続OK'; await boot(); }catch(e){ $('#cfgStatus').textContent='接続できません: '+e.message; } };
+$('#cfgLink').onclick=async()=>{ const c={url:$('#cfgUrl').value.trim(),token:$('#cfgToken').value}; if(!c.url) return toast('先にURLを入れてください'); const link=location.origin+location.pathname+'#s='+encCfg(c); try{ await navigator.clipboard.writeText(link); $('#cfgStatus').textContent='設定リンクをコピーしました（LINEやメールで自分に送って、他の端末で開いてください）'; }catch(e){ prompt('このリンクをコピーしてください',link); } };
 $('#formsText').onchange=()=>{ D.forms=$('#formsText').value.split(/[,、，]/).map(s=>s.trim()).filter(Boolean); LSs('hc_forms',D.forms.join(',')); renderStaffSel(); };
 let editRes=[];
 function renderResTable(){
