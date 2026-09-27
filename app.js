@@ -290,7 +290,8 @@ async function importLineFile(f, st, ym){
     const parsed=parseLine(text); const all=parsed.filter(g=>g.y===y&&g.m===m);
     const names=D.residents.map(r=>r['氏名']); const sns=names.map(surnameOf).filter(s=>s.length>=2);
     // 前回どこまで読んだか（月ごとのカーソル）。最後に読んだ投稿を探して、その続きだけ対象にする
-    const redo=$('#lineRedo')&&$('#lineRedo').checked; const curKey='line_cursor:'+ym; const cur=redo?null:profOf('',curKey);
+    const gProf=k=>{ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']===k); if(!r) return null; try{ return JSON.parse(r['値']); }catch(e){ return null; } }; const sProf=async(k,v)=>{ await api('saveProfile',{residentId:'',key:k,value:v}); D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===''&&p['キー']===k)); D.profiles.push({'利用者ID':'','キー':k,'値':JSON.stringify(v)}); };
+    const redo=$('#lineRedo')&&$('#lineRedo').checked; const curKey='line_cursor:'+ym; const cur=redo?null:gProf(curKey);
     const sig=g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''} ${(g.sender||'')}|${String(g.text).slice(0,120)}`;
     let start=0;
     if(cur&&cur.last){ let idx=-1; for(let k=Math.min(cur.n||all.length,all.length)-1;k>=0;k--){ if(sig(all[k])===cur.last){ idx=k; break; } } if(idx<0) idx=all.findIndex(g=>sig(g)===cur.last); if(idx>=0) start=idx+1; else if(cur.lastAt){ start=all.findIndex(g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''}`>cur.lastAt); if(start<0) start=all.length; } }
@@ -298,7 +299,7 @@ async function importLineFile(f, st, ym){
     const picked=fresh.filter(g=>{ const t=g.text; if(/^(画像|動画|スタンプ|\[投票|\[投票終了|.*をグループに追加しました。?$|メッセージの送信を取り消しました)/.test(t)) return false; if(/https?:\/\//.test(t)&&t.length<80) return false; return sns.some(s=>t.indexOf(s)>=0) || RE_HOUSE_KW.test(t) || /オンコール/.test(g.sender||''); })
       .map(g=>({date:`${g.y}-${pad(g.m)}-${pad(g.d)}`,time:g.time,sender:g.sender,text:g.text.slice(0,600)}));
     if(!all.length){ const months=[...new Set(parsed.map(g=>`${g.y}-${pad(g.m)}`))].sort(); throw new Error(`${ym}の投稿がありません（このファイルにある月：${months.slice(-6).join('、')}）`); }
-    const saveCursor=async()=>{ const last=all[all.length-1]; await saveProf('',curKey,{n:all.length,last:sig(last),lastAt:`${last.y}-${pad(last.m)}-${pad(last.d)} ${last.time||''}`,at:new Date().toISOString()}); };
+    const saveCursor=async()=>{ const last=all[all.length-1]; await sProf(curKey,{n:all.length,last:sig(last),lastAt:`${last.y}-${pad(last.m)}-${pad(last.d)} ${last.time||''}`,at:new Date().toISOString()}); };
     if(!fresh.length){ st.textContent=`前回（${all.length}通目まで）以降の新しい投稿はありません`; return; }
     if(!picked.length){ await saveCursor(); st.textContent=`新しい投稿${fresh.length}通に入居者に関するものはありませんでした（次回はこの続きから読みます）`; return; }
     const msg=start>0?`${ym}のLINE投稿 新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`;
