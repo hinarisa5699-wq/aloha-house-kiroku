@@ -51,9 +51,10 @@ function dateLabel(s){const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/
 async function boot(){
   $('#cfgUrl').value=cfg.url; $('#cfgToken').value=cfg.token; $('#formsText').value=D.forms.join(',');
   if(!cfg.url){ $('#todayList').innerHTML='<div class="card">はじめに「設定」でGASのURLと合言葉を入れてください。</div>'; show('set'); return; }
-  if(!(+LS('hc_login')>Date.now())){ // ログイン（サーバ側でパスワード確認。未設定なら素通り）
-    try{ const r=await api('login',{pw:''}); if(r&&r.none){ LSs('hc_login',String(Date.now()+30*86400000)); } }catch(e){}
-    if(!(+LS('hc_login')>Date.now())){ $('#loginGate').classList.remove('hide'); $('#loginPw').focus(); return; }
+  if(!(+LS('hc_login')>Date.now())){ // ログイン：まずパスワード画面をすぐ出す（サーバ側でパスワード未設定なら裏で確認して自動で通す）
+    $('#loginGate').classList.remove('hide'); $('#loginPw').focus();
+    api('login',{pw:''}).then(r=>{ if(r&&r.none){ LSs('hc_login',String(Date.now()+30*86400000)); $('#loginGate').classList.add('hide'); boot(); } }).catch(()=>{});
+    return;
   }
   // 前回の内容をまず表示（開き直したときに「読み込み中」で待たせない）。そのあと裏で最新に更新
   const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); };
