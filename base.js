@@ -451,12 +451,13 @@ const trainingOf=r=>profOf(r.id,'training')||seedFor(r)||null;
 
 // ---------- バイタル集計（取込記録の内容から） ----------
 function parseVitals(text){
-  const t=String(text||''); const o={};
-  let m=t.match(/体温[：:\s]*([3][4-9]\.\d|4[0-2]\.\d|3[5-9]|4[01])/); if(m) o.temp=+m[1];
-  m=t.match(/血圧[：:\s]*(\d{2,3})\s*[\/／]\s*(\d{2,3})/); if(m){ o.sbp=+m[1]; o.dbp=+m[2]; }
-  m=t.match(/脈(?:拍)?[：:\s]*(\d{2,3})/); if(m) o.pulse=+m[1];
-  m=t.match(/SpO2[：:\s]*(\d{2,3})/i); if(m) o.spo2=+m[1];
-  m=t.match(/体重[：:\s]*(\d{2,3}(?:\.\d)?)/); if(m) o.weight=+m[1];
+  // カイポケ側の入力ミス（89/525、SpO2 38 など）を除くため、あり得る範囲の値だけ採用する
+  const t=String(text||''); const o={}; const inR=(v,a,b)=>v>=a&&v<=b?v:null;
+  let m=t.match(/体温[：:\s]*(\d{2}(?:\.\d)?)/); if(m){ const v=inR(+m[1],34,42); if(v!=null) o.temp=v; }
+  m=t.match(/血圧[：:\s]*(\d{2,3})\s*[\/／]\s*(\d{2,3})/); if(m){ const a=inR(+m[1],60,250), b=inR(+m[2],30,150); if(a!=null) o.sbp=a; if(b!=null&&a!=null&&b<a) o.dbp=b; }
+  m=t.match(/脈(?:拍)?[：:\s]*(\d{2,3})/); if(m){ const v=inR(+m[1],30,200); if(v!=null) o.pulse=v; }
+  m=t.match(/SpO2[：:\s]*(\d{2,3})/i); if(m){ const v=inR(+m[1],80,100); if(v!=null) o.spo2=v; }
+  m=t.match(/体重[：:\s]*(\d{2,3}(?:\.\d)?)/); if(m){ const v=inR(+m[1],25,150); if(v!=null) o.weight=v; }
   return Object.keys(o).length?o:null;
 }
 async function loadStats(rid){
