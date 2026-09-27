@@ -345,5 +345,9 @@ $('#resCsv').onchange=async e=>{
   let added=0; for(const c of (useOnlyHouse?house:cands)){ if(editRes.some(r=>normName(r['氏名'])===normName(c.name))) continue; editRes.push({id:'',氏名:c.name,ふりがな:c.kana,部屋:c.room,食事形態:'',在籍:'1',メモ:'',入居日:'',既往歴:''}); added++; }
   D.allResidents=editRes; renderResTable(); toast(`${added}名を追加しました。部屋・食事形態を確認して「入居者を保存」を押してください`); e.target.value='';
 };
+// ドラッグ＆ドロップ：.drop の枠に落としたファイルを中の <input type=file> に渡す
+document.addEventListener('dragover',e=>{ const d=e.target.closest&&e.target.closest('.drop'); if(d){ e.preventDefault(); d.classList.add('over'); } });
+document.addEventListener('dragleave',e=>{ const d=e.target.closest&&e.target.closest('.drop'); if(d) d.classList.remove('over'); });
+document.addEventListener('drop',e=>{ const d=e.target.closest&&e.target.closest('.drop'); if(!d) return; e.preventDefault(); d.classList.remove('over'); const inp=d.querySelector('input[type=file]'); if(!inp||!e.dataTransfer.files.length) return; const dt=new DataTransfer(); for(const f of e.dataTransfer.files){ dt.items.add(f); if(!inp.multiple) break; } inp.files=dt.files; inp.dispatchEvent(new Event('change',{bubbles:true})); });
 boot();
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
