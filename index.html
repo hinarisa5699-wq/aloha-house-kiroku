@@ -146,7 +146,7 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
 
 <!-- ===== 今日 ===== -->
 <section class="panel on" id="p-today">
-  <div class="muted noprint" style="margin:2px 0 8px">名前を押すと入力画面。朝/昼/夕の色：<span class="chip done">10/8</span>記入済 <span class="chip low">5/2</span>摂取半分以下 <span class="chip sym">むせ</span>症状あり <span class="chip">未</span>未記入</div>
+  <div class="muted noprint" style="margin:2px 0 8px">名前を押すと入力画面。数字は<b>食べた量</b>（主食/副食、10=全量）。朝/昼/夕の色：<span class="chip done">10/8</span>記入済 <span class="chip low">5/2</span>摂取半分以下 <span class="chip sym">むせ</span>症状あり <span class="chip">未</span>未記入</div>
   <div class="card" id="todaySchCard" style="padding:10px 12px"><h2 style="margin:0 0 6px;font-size:14px">今日の予定（全員）</h2><div id="todaySch" class="muted">読み込み中…</div></div>
   <div id="todayList"><div class="muted">読み込み中…</div></div>
 </section>
@@ -157,9 +157,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
     <div class="row" style="margin-bottom:8px"><button class="btn" id="backBtn" style="flex:none">‹ 一覧へ</button><div><b id="eName" style="font-size:18px"></b> <span class="muted" id="eRoom"></span></div></div>
     <div id="eSch" class="muted" style="margin-bottom:8px"></div>
     <div class="mealtabs" id="mealTabs"></div>
-    <div class="field"><div class="lb"><span>主食（割）</span><span id="stapleV"></span></div><div class="seg" id="staple"></div></div>
-    <div class="field"><div class="lb"><span>副食（割）</span><span id="sideV"></span></div><div class="seg" id="side"></div></div>
-    <div class="field"><div class="lb"><span>水分（ml）</span><span id="waterV"></span></div><div class="seg water" id="water"></div></div>
+    <div class="field"><div class="lb"><span>主食 <b style="color:#c0392b">食べた量</b>（割）※残した量ではありません</span><span id="stapleV"></span></div><div class="seg" id="staple"></div></div>
+    <div class="field"><div class="lb"><span>副食 <b style="color:#c0392b">食べた量</b>（割）</span><span id="sideV"></span></div><div class="seg" id="side"></div></div>
+    <div class="field"><div class="lb"><span>水分 飲んだ量（ml）</span><span id="waterV"></span></div><div class="seg water" id="water"></div></div>
     <div class="field"><div class="lb"><span>食事形態</span></div><select id="form"></select></div>
     <div class="field"><div class="lb"><span>症状・様子（あてはまるものを押す）</span></div><div class="seg sym" id="sym"></div></div>
     <div class="field"><div class="lb"><span>備考</span></div><textarea id="memo" placeholder="残した物、声かけの内容、家族への連絡事項など"></textarea></div>
@@ -345,9 +345,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mujvfzsh"></script>
-<script src="kiroku.js?v=mujvfzsh"></script>
-<script src="app.js?v=mujvfzsh"></script>
-<script src="base.js?v=mujvfzsh"></script>
+<script src="parsers.js?v=mujw3qih"></script>
+<script src="kiroku.js?v=mujw3qih"></script>
+<script src="app.js?v=mujw3qih"></script>
+<script src="base.js?v=mujw3qih"></script>
 </body>
 </html>
