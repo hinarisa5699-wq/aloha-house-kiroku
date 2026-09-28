@@ -398,7 +398,7 @@ async function importLineFile(f, st, ym){
     if(!picked.length){ await saveCursor(); st.textContent=`新しい投稿${fresh.length}通に入居者に関するものはありませんでした（次回はこの続きから読みます）`; return; }
     const msg=start>0?`${ym}のLINE投稿 新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`;
     if(!confirm(msg)) { st.textContent='中止しました'; return; }
-    const CH=60; let total=0, totalDiary=0, totalSch=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
+    const CH=60; let total=0, totalDiary=0, totalSch=0, totalMeals=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
     for(let i=0;i<picked.length;i+=CH){ st.textContent=`AI抽出中… ${Math.min(i+CH,picked.length)}/${picked.length}通`;
       const res=await api('extractLine',{residents:names,messages:picked.slice(i,i+CH)});
       const rows=res.items.map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.content,'記録者':'','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
@@ -411,9 +411,12 @@ async function importLineFile(f, st, ym){
       const srows=(res.schedules||[]).map(it=>{ if(it.resident==='アロハハウス') return {'日付':it.date,'利用者ID':'','氏名':'アロハハウス','種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}; const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}:null; }).filter(Boolean);
       const byYm={}; srows.forEach(r=>{ (byYm[r['日付'].slice(0,7)]=byYm[r['日付'].slice(0,7)]||[]).push(r); });
       for(const [sym,list] of Object.entries(byYm)){ const a=await api('importSchedules',{ym:sym,source:'LINE',rows:list,append:true}); totalSch+=a.added; }
+      // 食事量（「完食」など）→ 食事記録へ（職員が入力済みのものは上書きしない）
+      const mrows=(res.meals||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'食事':it.meal,'主食':it.staple,'副食':it.side,'水分':it.water,'症状':it.sym||'','備考':'LINEより'}:null; }).filter(Boolean);
+      if(mrows.length){ try{ const a=await api('autoMeals',{rows:mrows,source:'LINE'}); totalMeals+=a.saved||0; }catch(e){} }
     }
     await saveCursor(); stampImport(['LINE']);
-    st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件を保存しました。日誌タブと予定タブで確認し、違うものは削除してください`;
+    st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件・食事${totalMeals}件を保存しました。日誌タブと予定タブで確認し、違うものは削除してください`;
     loadDay(); if($('#p-set').classList.contains('on')) loadExtList();
   }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); }
 }
