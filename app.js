@@ -14,6 +14,8 @@ const DEFAULT_FORMS='常食,軟菜,一口大,きざみ,ミキサー,ソフト食
 const CK=k=>{try{const m=document.cookie.match(new RegExp('(?:^|; )'+k+'=([^;]*)'));return m?decodeURIComponent(m[1]):null}catch(e){return null}}, CKs=(k,v)=>{try{document.cookie=k+'='+encodeURIComponent(v)+';max-age=34560000;path=/;SameSite=Lax'}catch(e){}};
 const encCfg=c=>btoa(unescape(encodeURIComponent(JSON.stringify({u:c.url,t:c.token})))).replace(/=+$/,''), decCfg=s=>{try{const o=JSON.parse(decodeURIComponent(escape(atob(s))));return o&&o.u?{url:o.u,token:o.t||''}:null}catch(e){return null}};
 let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')||''};
+// スマホ・タブレット用リンク（?s=…&m=1）で開いた端末は「設定」タブを出さない（接続先はリンクに入っているので手で触る必要がない）
+(function(){ if(/[?&]m=1(&|$|#)/.test(location.search)) LSs('hc_mode','m'); if(LS('hc_mode')==='m') document.body.classList.add('fixedcfg'); })();
 (function(){ const m=(location.search+location.hash).match(/[?#&]s=([^&#]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; history.replaceState(null,'',location.pathname); } if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
