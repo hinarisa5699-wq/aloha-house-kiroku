@@ -163,25 +163,27 @@ $('#infoSave').onclick=async()=>{
   catch(e){ toast('失敗: '+e.message); } finally{ busy(false); }
 };
 $('#saveMeal').onclick=async()=>{
-  const r=D.cur; const staple=segVal('staple'), side=segVal('side');
-  if(!staple) return toast('主食の量を選んでください');
+  const r=D.cur; const staple=segVal('staple'), side=segVal('side'); const msg=$('#saveMsg');
+  const ng=(t,el)=>{ msg.textContent='⚠ '+t; toast(t); if(el){ el.scrollIntoView({block:'center',behavior:'smooth'}); el.style.outline='3px solid #c0392b'; setTimeout(()=>el.style.outline='',2500); } };
+  if(!staple) return ng('主食の量を選んでください',$('#staple'));
   const noMeal=staple==='欠'||staple==='注文なし'; // 欠食／注文なし（食事を出していない）
-  if(!noMeal&&!side) return toast('副食の量を選んでください');
-  const staff=$('#staff').value; if(!staff) return toast('記入者を選んでください'); LSs('hc_staff',staff);
+  if(!noMeal&&!side) return ng('副食の量を選んでください',$('#side'));
+  const staff=$('#staff').value; if(!staff) return ng('記入者を選んでください（下の「記入者」）',$('#staff')); LSs('hc_staff',staff); msg.textContent='';
   const rec={id:(mealOf(r.id,D.meal)||{}).id||'', '日付':D.date,'食事':D.meal,'利用者ID':r.id,'氏名':r['氏名'],'主食':staple,'副食':noMeal?staple:side,'水分':segVal('water'),'食事形態':$('#form').value,
     '症状':$$('#sym button.on').map(b=>b.dataset.v).join(','),'備考':$('#memo').value.trim(),'記入者':staff};
-  try{ busy(true); $('#saveMeal').disabled=true; const saved=await api('saveMeal',{record:rec}); D.day.meals=D.day.meals.filter(m=>!(m['利用者ID']===r.id&&m['食事']===D.meal)); D.day.meals.push(saved); toast(`${r['氏名']} ${D.meal} 保存しました`); renderEntry(); renderToday(); }
-  catch(e){ toast('保存失敗: '+e.message); } finally{ busy(false); $('#saveMeal').disabled=false; }
+  try{ busy(true); $('#saveMeal').disabled=true; $('#saveMeal').textContent='保存中…'; const saved=await api('saveMeal',{record:rec}); D.day.meals=D.day.meals.filter(m=>!(m['利用者ID']===r.id&&m['食事']===D.meal)); D.day.meals.push(saved); toast(`${r['氏名']} ${D.meal} 保存しました`); msg.style.color='#1f7a3a'; msg.textContent=`✓ ${D.meal} 保存しました`; setTimeout(()=>{ msg.textContent=''; msg.style.color='#c0392b'; },3000); renderEntry(); renderToday(); }
+  catch(e){ msg.textContent='⚠ 保存できませんでした: '+e.message; toast('保存失敗: '+e.message); } finally{ busy(false); $('#saveMeal').disabled=false; $('#saveMeal').textContent='保存'; }
 };
 $('#delMeal').onclick=async()=>{ const r=D.cur; const m=mealOf(r.id,D.meal); if(!m||!confirm(`${r['氏名']} ${D.meal}の記録を消しますか？`)) return; try{ await api('saveMeal',{record:{...m,_delete:true}}); D.day.meals=D.day.meals.filter(x=>x.id!==m.id); renderEntry(); renderToday(); toast('消しました'); }catch(e){toast('失敗: '+e.message);} };
 function renderNotes(){ const r=D.cur; const list=D.day.notes.filter(n=>n['利用者ID']===r.id).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||'')); $('#noteList').innerHTML=list.map(n=>`<div class="n"><div class="m">${n['時刻']||''} ${esc(n['種別'])}　${esc(n['記入者'])} <button class="btn danger" data-del="${n.id}" style="padding:1px 8px;font-size:11px;float:right">削除</button></div>${esc(n['内容'])}</div>`).join(''); $$('#noteList [data-del]').forEach(b=>b.onclick=async()=>{ if(!confirm('削除しますか？')) return; await api('saveNote',{record:{id:b.dataset.del,_delete:true}}); api('saveDiary',{record:{id:'n-'+b.dataset.del,_delete:true}}).catch(()=>{}); D.day.notes=D.day.notes.filter(n=>n.id!==b.dataset.del); renderNotes(); renderToday(); }); }
 $('#saveNote').onclick=async()=>{
   const r=D.cur; const text=$('#nText').value.trim(); if(!text) return toast('内容を入れてください'); const staff=$('#staff').value; if(!staff) return toast('記入者を選んでください'); LSs('hc_staff',staff);
   const rec={'日付':D.date,'時刻':$('#nTime').value||`${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`,'利用者ID':r.id,'氏名':r['氏名'],'種別':$('#nKind').value,'内容':text,'記入者':staff};
+  const nb=$('#saveNote'); if(nb.disabled) return; nb.disabled=true; nb.textContent='追加中…';
   try{ busy(true); const saved=await api('saveNote',{record:rec}); D.day.notes.push(saved); $('#nText').value=''; $('#nTime').value=''; renderNotes(); renderToday(); toast('追加しました（日誌にも記録）');
     // 様子・特記はそのまま個人日誌にも載せる（id を n-様子ID にして、様子を消したら日誌も消えるようにする）
     api('saveDiary',{record:{id:'n-'+saved.id,'日付':rec['日付'],'時刻':rec['時刻'],'利用者ID':rec['利用者ID'],'氏名':rec['氏名'],'種別':rec['種別'],'内容':rec['内容'],'記入者':staff,'出所':'様子記録'}}).catch(()=>{});
-  }catch(e){toast('失敗: '+e.message);} finally{busy(false);}
+  }catch(e){toast('失敗: '+e.message);} finally{busy(false); nb.disabled=false; nb.textContent='様子を追加';}
 };
 
 // ===== 日誌 =====
@@ -315,7 +317,11 @@ $('#sAdd').onclick=async()=>{
   const dates=expandRule(rule); if(!dates.length) return toast('該当する日がありません');
   const kind=$('#sKind').value, text=$('#sText').value.trim();
   const rows=dates.map(d=>({'日付':d,'利用者ID':rid,'氏名':r['氏名'],'種別':kind,'開始':$('#sStart').value,'終了':$('#sEnd').value,'内容':type==='range'?text+`（${rule.from.slice(5).replace('-','/')}～${rule.to?rule.to.slice(5).replace('-','/'):''}）`:text,'担当':'','出所':'手入力'}));
-  try{ busy(true); await api('addSchedules',{rows}); toast(`${dates.length}日分を登録しました`); $('#sText').value=''; loadSchList(); if(dates.includes(D.date)) loadDay(); }catch(e){toast('失敗: '+e.message);} finally{busy(false);}
+  const btn=$('#sAdd'), sm=$('#sMsg'); if(btn.disabled) return; // 連打防止
+  btn.disabled=true; btn.textContent='登録中…'; sm.style.color='#1f7a3a'; sm.textContent='';
+  try{ busy(true); const res=await api('addSchedules',{rows}); const n=res&&res.added!=null?res.added:dates.length; const sk=res&&res.skipped?`（同じ予定が${res.skipped}件あったので飛ばしました）`:''; sm.textContent=`✓ ${r['氏名']}：${n}件 登録しました${sk}`; toast(`${n}件登録しました`); $('#sText').value=''; loadSchList(); if(dates.includes(D.date)) loadDay(); }
+  catch(e){ sm.style.color='#c0392b'; sm.textContent='⚠ 登録できませんでした: '+e.message; toast('失敗: '+e.message); }
+  finally{ busy(false); btn.disabled=false; btn.textContent='登録'; }
 };
 $('#sReload').onclick=loadSchList; $('#sListRes').onchange=loadSchList;
 async function loadSchList(){
