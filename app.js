@@ -451,8 +451,9 @@ $('#resCsv').onchange=async e=>{
   const house=cands.filter(c=>c.isHouse);
   const useOnlyHouse = house.length && house.length<cands.length ? confirm(`${cands.length}名のうち、住所がアロハハウスの方は ${house.length}名です。\n${house.map(c=>c.name+(c.room?'('+c.room+')':'')).join('、')}\n\nこの${house.length}名だけを入居者として追加しますか？（キャンセル＝全員を追加）`) : false;
   let added=0, upd=0; const items=[];
-  for(const c of (useOnlyHouse?house:cands)){
+  for(const c of cands){ // 既存の方は住所に関係なく補完、新規はアロハハウス住所の方だけ
     const ex=editRes.find(r=>normName(r['氏名'])===normName(c.name));
+    if(!ex&&useOnlyHouse&&!c.isHouse) continue;
     if(ex){ // すでにいる方：ふりがな・性別・生年月日が空なら埋める
       let ch=false; if(!ex['ふりがな']&&c.kana){ ex['ふりがな']=c.kana; ch=true; }
       if(ex.id&&(c.sex||c.birth)){ const pr=(D.profiles||[]).find(p=>p['利用者ID']===ex.id&&p['キー']==='basic'); let b={}; try{ b=pr?JSON.parse(pr['値'])||{}:{}; }catch(x){ b={}; }
