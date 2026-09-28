@@ -65,7 +65,7 @@ async function boot(){
   const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); };
   try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=JSON.parse(LS('hc_cache_day')||'null'); if(cb&&cb.residents){ applyBoot(cb); if(cd&&cd.date===D.date&&cd.data){ D.day=cd.data; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
   const slow=setTimeout(()=>{ if(/読み込み中/.test($('#todayList').textContent)) $('#todayList').innerHTML='<div class="card">読み込みに時間がかかっています。通信状況を確認して、少し待つか<button class="btn" type="button" onclick="location.reload()">再読み込み</button>してください。</div>'; },15000);
-  try{ busy(true); const b=await api('bootstrap'); applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); await loadDay(); clearTimeout(slow); }
+  try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); D.day=d; LSs('hc_cache_day',JSON.stringify({date:D.date,data:d})); renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
   catch(e){ $('#todayList').innerHTML=`<div class="card">接続できません：${e.message}<br><span class="muted">設定を確認してください</span></div>`; }
   finally{ busy(false); }
 }
@@ -104,7 +104,14 @@ function renderTodaySch(){
   el.innerHTML='<table class="grid" style="width:100%;font-size:13px"><tr><th style="width:92px">時間</th><th style="width:34px">部屋</th><th style="width:110px">氏名</th><th style="text-align:left">予定</th><th style="width:70px">担当</th></tr>'+list.map(s=>{ const r=nm[s['利用者ID']]; return `<tr class="${r.id?'sch-row':''}" data-id="${r.id}" style="${r.id?'cursor:pointer':'background:#fff7e6'}"><td>${s['開始']||''}${s['終了']?'-'+s['終了']:''}</td><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td style="text-align:left"><span class="sch ${schCls(s)}">${esc(body(s))}</span></td><td>${esc(s['担当']||'')}</td></tr>`; }).join('')+'</table>';
   $$('#todaySch .sch-row').forEach(tr=>tr.onclick=()=>openEntry(tr.dataset.id));
 }
+// 取り込みの実施記録（介護記録PDF・LINE）。今日まだなら「今日の予定/食事」の上に注意を出す
+function importLast(){ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']==='import_last'); try{ return r?JSON.parse(r['値'])||{}:{}; }catch(e){ return {}; } }
+async function stampImport(kinds){ const v=importLast(); const now=new Date(); const t=`${todayStr()} ${pad(now.getHours())}:${pad(now.getMinutes())}`; kinds.forEach(k=>v[k]=t); try{ await api('saveProfile',{residentId:'',key:'import_last',value:v}); }catch(e){} D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===''&&p['キー']==='import_last')); D.profiles.push({'利用者ID':'','キー':'import_last','値':JSON.stringify(v)}); renderImportWarn(); }
+function renderImportWarn(){ const el=$('#impWarn'); if(!el) return; const v=importLast(); const need=[['介護記録','介護記録PDF（毎日の記録・業務日誌）'],['LINE','LINEトーク']]; const miss=need.filter(([k])=>!(v[k]||'').startsWith(todayStr())); const done=need.filter(([k])=>(v[k]||'').startsWith(todayStr()));
+  if(!miss.length){ el.className='card'; el.style.cssText='padding:6px 12px;background:#eefaf0;border-color:#b7e1c1;font-size:12.5px'; el.innerHTML=`✓ 今日の取り込み済み：${done.map(([k,l])=>l+' '+esc(v[k].slice(11))).join('　')}`; return; }
+  el.className='card'; el.style.cssText='padding:8px 12px;background:#fff3f3;border-color:#f3b4b4;color:#b3261e;font-weight:700'; el.innerHTML=`⚠ 今日まだ取り込んでいません：${miss.map(([k,l])=>l).join('、')}<div class="muted" style="font-weight:400;color:#7a1f1a;font-size:12px">${done.length?'取り込み済み：'+done.map(([k,l])=>l+' '+esc(v[k].slice(11))).join('　')+'　':''}パソコンの「設定」タブから取り込んでください（毎日必須）</div>`; }
 function renderToday(){
+  renderImportWarn();
   $('#ttl').textContent=`入居者記録 ${dateLabel(D.date)}`;
   if(!D.residents.length){ $('#todayList').innerHTML='<div class="card">入居者が登録されていません。「設定」から登録してください。</div>'; return; }
   renderTodaySch();
@@ -365,6 +372,7 @@ $('#impKiroku').onchange=async e=>{
     st.textContent='保存中…';
     const a=await api('importExt',{key:ym+'|介護記録',rows:own}); const b=await api('importExt',{key:ym+'|ハウス日誌',rows:diary});
     const addedStaff=await mergeStaff(staffCandidates(staffCounts,D.staff));
+    stampImport(['介護記録']);
     st.textContent=`${pages}ページ → 入居者本人の記録 ${a.added}件、ハウス日誌 ${b.added}件（うち全体扱い ${diary.filter(x=>!x['利用者ID']).length}件）を保存しました`+(addedStaff?`。記録者 ${addedStaff}名を記入者に追加しました`:'');
     loadDay(); loadExtList();
   }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); e.target.value=''; }
@@ -398,12 +406,12 @@ async function importLineFile(f, st, ym){
       const drows=(res.diary||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.text,'記入者':'LINE','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
       if(drows.length){ await api('importDiary',{key:ym+'|LINE',rows:drows,append:start>0||i>0}); totalDiary+=drows.length; }
       // 予定（入居者個人／アロハハウス全体）：追加のみ
-      const kindMap=k=>({'受診':'受診','往診':'往診','入院':'入院','退院':'退院','面会':'面会','外出':'外出','行事':'行事','業者':'業者','会議':'会議'})[k]||'その他';
+      const kindMap=k=>({'訪看':'訪看','訪介':'訪介','受診':'受診','往診':'往診','入院':'入院','退院':'退院','面会':'面会','外出':'外出','行事':'行事','業者':'業者','会議':'会議'})[k]||'その他';
       const srows=(res.schedules||[]).map(it=>{ if(it.resident==='アロハハウス') return {'日付':it.date,'利用者ID':'','氏名':'アロハハウス','種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}; const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}:null; }).filter(Boolean);
       const byYm={}; srows.forEach(r=>{ (byYm[r['日付'].slice(0,7)]=byYm[r['日付'].slice(0,7)]||[]).push(r); });
       for(const [sym,list] of Object.entries(byYm)){ const a=await api('importSchedules',{ym:sym,source:'LINE',rows:list,append:true}); totalSch+=a.added; }
     }
-    await saveCursor();
+    await saveCursor(); stampImport(['LINE']);
     st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件を保存しました。日誌タブと予定タブで確認し、違うものは削除してください`;
     loadDay(); if($('#p-set').classList.contains('on')) loadExtList();
   }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); }
