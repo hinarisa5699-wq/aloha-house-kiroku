@@ -344,11 +344,29 @@ $('#sReload').onclick=loadSchList; $('#sListRes').onchange=loadSchList;
 async function loadSchList(){
   const out=$('#sList'); out.innerHTML='<div class="muted">読み込み中…</div>';
   try{ const from=D.date.slice(0,7)+'-01'; const list=(await api('schedulesFrom',{from,residentId:$('#sListRes').value,raw:1})).sort((a,b)=>(a['日付']+a['開始']).localeCompare(b['日付']+b['開始']));
-    // 手入力のグループ（同時登録）はまとめて表示
+    window._schList=list; if(!window._schOpen) window._schOpen={};
+    // 手入力のグループ（同時登録）はまとめて表示。「個別」を押すと1日ずつに開ける
     const groups=new Map(); for(const s of list){ const g=s['出所']==='手入力'?s.id.split('-')[0]:s.id; if(!groups.has(g)) groups.set(g,{first:s,items:[]}); groups.get(g).items.push(s); }
-    out.innerHTML=list.length?`<table class="grid"><tr><th>日付</th><th>氏名</th><th>予定</th><th>出所</th><th></th></tr>`+[...groups.values()].map(g=>{const s=g.first; const n=g.items.length; return `<tr><td class="l">${dateLabel(s['日付'])}${n>1?`〜 ${n}日分`:''}</td><td class="l">${esc(s['氏名'])}</td><td class="l" style="white-space:normal">${s['開始']?s['開始']+(s['終了']?'-'+s['終了']:'')+' ':''}${esc(s['種別'])} ${esc(s['内容'])} ${esc(s['担当'])}</td><td>${esc(s['出所'])}</td><td>${s['出所']==='手入力'?`<button class="btn danger" style="padding:2px 8px;font-size:11px" data-g="${n>1?s.id.split('-')[0]:''}" data-id="${s.id}">削除</button>`:''}</td></tr>`;}).join('')+'</table>':'<div class="muted">予定はありません</div>';
-    $$('#sList [data-id]').forEach(b=>b.onclick=async()=>{ if(!confirm('この予定を削除しますか？（繰り返し登録分はまとめて消えます）')) return; await api('deleteSchedule',{id:b.dataset.id,group:b.dataset.g}); loadSchList(); loadDay(); });
+    const rowHtml=(s,grp)=>`<tr data-row="${s.id}"><td class="l">${dateLabel(s['日付'])}${grp?`〜 ${grp}日分`:''}</td><td class="l">${esc(s['氏名'])}</td><td class="l" style="white-space:normal">${s['開始']?s['開始']+(s['終了']?'-'+s['終了']:'')+' ':''}${esc(s['種別'])} ${esc(s['内容'])} ${esc(s['担当'])}</td><td>${esc(s['出所'])}</td><td style="white-space:nowrap">${grp?`<button class="btn" style="padding:2px 8px;font-size:11px" data-open="${s.id.split('-')[0]}">個別</button> `:`<button class="btn" style="padding:2px 8px;font-size:11px" data-edit="${s.id}">変更</button> `}<button class="btn danger" style="padding:2px 8px;font-size:11px" data-g="${grp?s.id.split('-')[0]:''}" data-id="${s.id}">削除</button></td></tr>`;
+    out.innerHTML=list.length?`<table class="grid"><tr><th>日付</th><th>氏名</th><th>予定</th><th>出所</th><th></th></tr>`+[...groups.entries()].map(([g,gr])=>{ const n=gr.items.length; if(n>1&&!window._schOpen[g]) return rowHtml(gr.first,n); return gr.items.map(s=>rowHtml(s,0)).join(''); }).join('')+'</table><div class="muted" style="margin-top:4px">カイポケやLINEから入った予定も「変更」「削除」できます。変更・削除した予定は次の取り込みで戻りません。</div>':'<div class="muted">予定はありません</div>';
+    $$('#sList [data-open]').forEach(b=>b.onclick=()=>{ window._schOpen[b.dataset.open]=true; loadSchList(); });
+    $$('#sList [data-id]').forEach(b=>b.onclick=async()=>{ const grp=b.dataset.g; if(!confirm(grp?'この繰り返し予定をまとめて削除しますか？（1日だけ消すときは「個別」で開いてから）':'この予定を削除しますか？')) return; b.disabled=true; try{ await api('deleteSchedule',{id:b.dataset.id,group:grp||undefined}); toast('削除しました'); }catch(e){ toast('失敗: '+e.message); } loadSchList(); loadDay(); });
+    $$('#sList [data-edit]').forEach(b=>b.onclick=()=>schEditRow(b.dataset.edit));
   }catch(e){ out.innerHTML='読み込み失敗: '+esc(e.message); }
+}
+// 予定1件の変更フォーム（その行を入力欄に置き換える）
+function schEditRow(id){
+  const s=(window._schList||[]).find(x=>x.id===id); const tr=$(`#sList tr[data-row="${id}"]`); if(!s||!tr) return;
+  const kinds=['訪看','訪リハ','訪介','デイ','往診','受診','入院','退院','外出','面会','行事','その他']; if(!kinds.includes(s['種別'])) kinds.unshift(s['種別']);
+  tr.innerHTML=`<td colspan="5" style="text-align:left;background:#fffbe6"><div class="mform" style="grid-template-columns:repeat(3,1fr)">
+    <label>日付<input type="date" id="se_d" value="${esc(s['日付'])}"></label><label>開始<input type="time" id="se_s" value="${esc(s['開始'])}"></label><label>終了<input type="time" id="se_e" value="${esc(s['終了'])}"></label>
+    <label>種別<select id="se_k">${kinds.map(k=>`<option ${k===s['種別']?'selected':''}>${esc(k)}</option>`).join('')}</select></label><label class="w" style="grid-column:span 2">内容<input type="text" id="se_c" value="${esc(s['内容'])}"></label>
+    <label>担当<input type="text" id="se_t" value="${esc(s['担当'])}"></label>
+    <div style="grid-column:span 2;display:flex;gap:6px;align-items:end"><button class="btn pri" id="se_ok">保存</button><button class="btn" id="se_no">やめる</button><span class="muted" id="se_msg"></span></div></div></td>`;
+  $('#se_no').onclick=()=>loadSchList();
+  $('#se_ok').onclick=async()=>{ const btn=$('#se_ok'); if(btn.disabled) return; btn.disabled=true; $('#se_msg').textContent='保存中…';
+    try{ await api('updateSchedule',{id,'日付':$('#se_d').value,'開始':$('#se_s').value,'終了':$('#se_e').value,'種別':$('#se_k').value,'内容':$('#se_c').value.trim(),'担当':$('#se_t').value.trim()}); toast('変更しました'); loadSchList(); loadDay(); }
+    catch(e){ btn.disabled=false; $('#se_msg').textContent='⚠ '+e.message; } };
 }
 // --- カイポケ取り込み（PC） ---
 (function(){ const s=$('#impYM'); const now=new Date(); for(let k=-2;k<=2;k++){ const d=new Date(now.getFullYear(),now.getMonth()+k,1); const v=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; s.innerHTML+=`<option value="${v}" ${k===0?'selected':''}>${d.getFullYear()}年${d.getMonth()+1}月</option>`; } })();
