@@ -224,17 +224,18 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
     <h2>予定の登録（往診・受診・入院など）</h2>
     <div class="mform">
       <label>利用者<select id="sRes"></select></label>
-      <label>種別<select id="sKind"><option>往診</option><option>受診</option><option>入院</option><option>外出</option><option>面会</option><option>その他</option></select></label>
+      <label>種別<select id="sKind"><option>往診</option><option>受診</option><option>入院</option><option>外出</option><option>面会</option><option>デイ</option><option>行事</option><option>その他</option></select></label>
       <label class="w">内容（病院名など）<input type="text" id="sText" placeholder="例：町田病院 整形外科"></label>
       <label>開始<input type="time" id="sStart"></label><label>終了<input type="time" id="sEnd"></label>
-      <label class="w">繰り返し<select id="sRule"><option value="once">1回のみ（日付指定）</option><option value="weekly">毎週（曜日）</option><option value="biweekly">隔週（曜日）</option><option value="monthly">毎月（○日）</option><option value="range">期間（入院など）</option></select></label>
+      <label class="w">繰り返し<select id="sRule"><option value="once">1回のみ（日付指定）</option><option value="weekly">毎週（曜日）</option><option value="biweekly">隔週（曜日）</option><option value="monthly">毎月（○日）</option><option value="nthdow">毎月（第○曜日）</option><option value="range">期間（入院など）</option></select></label>
       <label class="r-once">日付<input type="date" id="sDate"></label>
-      <label class="r-weekly r-biweekly">曜日<select id="sDow"><option value="1">月</option><option value="2">火</option><option value="3">水</option><option value="4">木</option><option value="5">金</option><option value="6">土</option><option value="0">日</option></select></label>
+      <label class="r-nthdow">第<select id="sNth"><option value="1">第1</option><option value="2">第2</option><option value="3">第3</option><option value="4">第4</option><option value="last">最終</option></select></label>
+      <label class="r-weekly r-biweekly r-nthdow">曜日<select id="sDow"><option value="1">月</option><option value="2">火</option><option value="3">水</option><option value="4">木</option><option value="5">金</option><option value="6">土</option><option value="0">日</option></select></label>
       <label class="r-biweekly">初回の日付<input type="date" id="sAnchor"></label>
       <label class="r-monthly">日<select id="sDay"></select></label>
-      <label class="r-weekly r-monthly r-range r-biweekly">開始日<input type="date" id="sFrom"></label>
-      <label class="r-weekly r-monthly r-range r-biweekly">終了日<input type="date" id="sTo"></label>
-      <div class="w muted" id="sHint">繰り返しは登録日から3か月先まで展開して保存します（それ以降は再登録）。</div>
+      <label class="r-weekly r-monthly r-nthdow r-range r-biweekly">開始日<input type="date" id="sFrom"></label>
+      <label class="r-weekly r-monthly r-nthdow r-range r-biweekly">終了日<input type="date" id="sTo"></label>
+      <div class="w muted" id="sHint">毎週・隔週は登録日から3か月先、毎月は12か月先まで展開して保存します（それ以降は再登録）。</div>
       <button class="btn pri w" id="sAdd">登録</button>
       <div class="w" id="sMsg" style="font-weight:700;color:#1f7a3a;min-height:1.2em"></div>
     </div>
@@ -357,9 +358,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mul4ojgy"></script>
-<script src="kiroku.js?v=mul4ojgy"></script>
-<script src="app.js?v=mul4ojgy"></script>
-<script src="base.js?v=mul4ojgy"></script>
+<script src="parsers.js?v=mul8zr82"></script>
+<script src="kiroku.js?v=mul8zr82"></script>
+<script src="app.js?v=mul8zr82"></script>
+<script src="base.js?v=mul8zr82"></script>
 </body>
 </html>

@@ -302,12 +302,12 @@ async function renderList(){
 }
 
 // ===== 予定 =====
-function fillSchRes(){ const o=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); $('#sRes').innerHTML=o; $('#sListRes').innerHTML='<option value="">全員</option>'+o; }
+function fillSchRes(){ const o=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); $('#sRes').innerHTML=o+'<option value="">アロハハウス（全員）</option>'; $('#sListRes').innerHTML='<option value="">全員</option>'+o; }
 (function(){ const s=$('#sDay'); for(let d=1;d<=31;d++) s.innerHTML+=`<option value="${d}">${d}日</option>`; $('#sDate').value=todayStr(); })();
 function updRule(){ const v=$('#sRule').value; $$('.mform label[class*="r-"]').forEach(l=>l.classList.toggle('hide',!l.classList.contains('r-'+v))); }
 $('#sRule').onchange=updRule; updRule();
 function expandRule(rule){ // 今日から3か月先まで
-  const out=[]; const start=new Date(); start.setHours(0,0,0,0); const end=new Date(start); end.setMonth(end.getMonth()+3);
+  const out=[]; const start=new Date(); start.setHours(0,0,0,0); const end=new Date(start); end.setMonth(end.getMonth()+((rule.type==='monthly'||rule.type==='nthdow')?12:3));
   const fmt=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   if(rule.type==='once') return [rule.date];
   const from=rule.from?new Date(rule.from+'T00:00:00'):start; const to=rule.to?new Date(rule.to+'T00:00:00'):end;
@@ -316,13 +316,14 @@ function expandRule(rule){ // 今日から3か月先まで
     if(rule.type==='weekly'&&dow===+rule.dow) out.push(fmt(d));
     else if(rule.type==='biweekly'&&dow===+rule.dow){ const a=new Date(rule.anchor+'T00:00:00'); const wk=Math.floor(Math.round((d-a)/86400000)/7); if(d>=a&&wk%2===0) out.push(fmt(d)); }
     else if(rule.type==='monthly'&&d.getDate()===+rule.day) out.push(fmt(d));
+    else if(rule.type==='nthdow'&&dow===+rule.dow){ const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); if(rule.nth==='last'?d.getDate()+7>last:Math.ceil(d.getDate()/7)===+rule.nth) out.push(fmt(d)); }
     else if(rule.type==='range') out.push(fmt(d));
   }
   return out;
 }
 $('#sAdd').onclick=async()=>{
-  const rid=$('#sRes').value; const r=D.residents.find(x=>x.id===rid); if(!r) return toast('利用者を選んでください');
-  const type=$('#sRule').value; const rule={type,date:$('#sDate').value,dow:$('#sDow').value,anchor:$('#sAnchor').value,day:$('#sDay').value,from:$('#sFrom').value,to:$('#sTo').value};
+  const rid=$('#sRes').value; const r=rid===''?{id:'','氏名':'アロハハウス'}:D.residents.find(x=>x.id===rid); if(!r) return toast('利用者を選んでください');
+  const type=$('#sRule').value; const rule={type,date:$('#sDate').value,dow:$('#sDow').value,nth:$('#sNth').value,anchor:$('#sAnchor').value,day:$('#sDay').value,from:$('#sFrom').value,to:$('#sTo').value};
   if(type==='once'&&!rule.date) return toast('日付を入れてください');
   if(type==='biweekly'){ if(!rule.anchor) return toast('初回の日付を入れてください'); if(new Date(rule.anchor+'T00:00:00').getDay()!==+rule.dow) return toast('初回の日付の曜日が違います'); rule.from=rule.from||rule.anchor; }
   if(type==='range'&&!rule.from) return toast('開始日を入れてください');
