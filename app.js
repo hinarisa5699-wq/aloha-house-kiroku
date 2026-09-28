@@ -75,7 +75,7 @@ async function loadDay(){
 }
 const mealOf=(rid,meal)=>D.day.meals.find(m=>m['利用者ID']===rid&&m['食事']===meal);
 const extOf=rid=>(D.day.ext||[]).filter(e=>e['利用者ID']===rid||(rid&&e['利用者ID']===''&&false)).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''));
-const extLabel=e=>e['出所']==='介護記録'?('デイ'+(e['種別']?'・'+e['種別']:'')):e['出所']==='訪看記録'?'訪看':(e['出所']+(e['種別']&&e['種別']!=='ケース'?'・'+e['種別']:''));
+const extLabel=e=>e['出所']==='介護記録'?('デイ'+(e['種別']?'・'+e['種別']:'')):e['出所']==='訪看記録'?'訪看':e['出所']==='訪介記録'?('訪介'+(e['種別']?'・'+e['種別']:'')):(e['出所']+(e['種別']&&e['種別']!=='ケース'?'・'+e['種別']:''));
 const extSrc=e=>({'訪看記録':'src-nurse','訪介記録':'src-helper','介護記録':'src-day','ハウス日誌':'src-day','LINE':'src-line'})[e['出所']]||'';
 const extHtml=e=>`<div class="ext ${extSrc(e)}"><span class="m">${e['時刻']||''} ${esc(extLabel(e))}${e['記録者']?' '+esc(e['記録者']):''}</span><br>${esc(e['内容'])}</div>`;
 const extCell=e=>`<span class="xt ${extSrc(e)}"><b>${e['時刻']||''} ${esc(extLabel(e))}</b>${esc(e['内容'])}</span>`;
@@ -429,7 +429,7 @@ $('#aiKeySave').onclick=async()=>{ const k=$('#aiKey').value.trim(); if(!k) retu
 $('#extReload').onclick=loadExtList; $('#extFilter').onchange=loadExtList;
 async function loadExtList(){
   const out=$('#extList'); const ym=$('#extYM').value; const f=$('#extFilter').value; out.innerHTML='<div class="muted">読み込み中…</div>';
-  try{ const keys=f?[f]:['介護記録','ハウス日誌','LINE','訪看記録']; let list=[]; for(const k of keys){ list=list.concat(await api('extList',{key:ym+'|'+k})); }
+  try{ const keys=f?[f]:['介護記録','ハウス日誌','LINE','訪看記録','訪介記録']; let list=[]; for(const k of keys){ list=list.concat(await api('extList',{key:ym+'|'+k})); }
     list.sort((a,b)=>(a['日付']+a['時刻']).localeCompare(b['日付']+b['時刻']));
     out.innerHTML=list.length?`<table class="grid"><tr><th>日付</th><th>時刻</th><th>氏名</th><th>出所</th><th>種別</th><th>内容</th><th>記録者</th><th></th></tr>`+list.map(e=>`<tr><td>${dateLabel(e['日付'])}</td><td>${e['時刻']||''}</td><td class="l">${esc(e['氏名'])}</td><td>${esc(e['出所'])}</td><td>${esc(e['種別'])}</td><td style="text-align:left">${esc(e['内容'])}</td><td>${esc(e['記録者'])}</td><td><button class="btn danger" style="padding:2px 8px;font-size:11px" data-x="${e.id}">削除</button></td></tr>`).join('')+'</table>':'<div class="muted">取込記録はありません</div>';
     $$('#extList [data-x]').forEach(b=>b.onclick=async()=>{ await api('deleteExt',{id:b.dataset.x}); b.closest('tr').remove(); loadDay(); });
