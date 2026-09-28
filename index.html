@@ -115,6 +115,14 @@ table.cal.week td{height:230px;font-size:12px} table.cal.week th{font-size:13px;
 @media(min-width:800px){.mform{grid-template-columns:repeat(4,1fr)} .res .nm{font-size:15px}}
 @media(min-width:700px){#todayList{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}}
 .scroll table.cal{min-width:640px} .scroll table.grid{min-width:520px}
+/* 横スクロールしても左の列（部屋・氏名／日）を残す */
+.scroll table.stk1 th:first-child,.scroll table.stk1 td:first-child,.scroll table.stk2 th:nth-child(-n+2),.scroll table.stk2 td:nth-child(-n+2){position:sticky;z-index:2;background:#fff;background-clip:padding-box}
+.scroll table.stk1 th:first-child,.scroll table.stk2 th:nth-child(-n+2){background:#eef1f4;z-index:3}
+.scroll table.stk1 th:first-child,.scroll table.stk1 td:first-child,.scroll table.stk2 th:first-child,.scroll table.stk2 td:first-child{left:0}
+.scroll table.stk2 th:first-child,.scroll table.stk2 td:first-child{width:36px;min-width:36px;max-width:36px}
+.scroll table.stk2 th:nth-child(2),.scroll table.stk2 td:nth-child(2){left:36px;box-shadow:2px 0 0 #c9d0d6}
+.scroll table.stk1 th:first-child,.scroll table.stk1 td:first-child{box-shadow:2px 0 0 #c9d0d6}
+@media print{.scroll table.stk1 th,.scroll table.stk1 td,.scroll table.stk2 th,.scroll table.stk2 td{position:static;box-shadow:none}}
 .drop{padding:12px}.drop.over{border-color:var(--pri);background:var(--pri-bg);color:var(--pri)}
 .mform label>label.drop{margin:4px 0 0}
 table.kv th{width:90px;text-align:left;background:#eef1f4;font-weight:600}table.kv td{text-align:left}
@@ -363,9 +371,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mulc209j"></script>
-<script src="kiroku.js?v=mulc209j"></script>
-<script src="app.js?v=mulc209j"></script>
-<script src="base.js?v=mulc209j"></script>
+<script src="parsers.js?v=muldme6v"></script>
+<script src="kiroku.js?v=muldme6v"></script>
+<script src="app.js?v=muldme6v"></script>
+<script src="base.js?v=muldme6v"></script>
 </body>
 </html>
