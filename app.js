@@ -304,7 +304,7 @@ async function renderList(){
 }
 
 // ===== 予定 =====
-function fillSchRes(){ const o=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); $('#sRes').innerHTML=o+'<option value="">アロハハウス（全員）</option>'; $('#sListRes').innerHTML='<option value="">全員</option>'+o; }
+function fillSchRes(){ const o=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); $('#sRes').innerHTML=o+'<option value="">アロハハウス（全員）</option><option value="day">アロハデイ（その日デイに行く方）</option>'; $('#sRes').onchange=()=>{ if($('#sRes').value==='day'){ $('#sKind').value='デイ'; } }; $('#sListRes').innerHTML='<option value="">全員</option>'+o; }
 (function(){ const s=$('#sDay'); for(let d=1;d<=31;d++) s.innerHTML+=`<option value="${d}">${d}日</option>`; $('#sDate').value=todayStr(); })();
 function updRule(){ const v=$('#sRule').value; $$('.mform label[class*="r-"]').forEach(l=>l.classList.toggle('hide',!l.classList.contains('r-'+v))); }
 $('#sRule').onchange=updRule; updRule();
@@ -324,14 +324,14 @@ function expandRule(rule){ // 今日から3か月先まで
   return out;
 }
 $('#sAdd').onclick=async()=>{
-  const rid=$('#sRes').value; const r=rid===''?{id:'','氏名':'アロハハウス'}:D.residents.find(x=>x.id===rid); if(!r) return toast('利用者を選んでください');
+  const rid=$('#sRes').value; const r=rid===''?{id:'','氏名':'アロハハウス'}:rid==='day'?{id:'','氏名':'アロハデイ'}:D.residents.find(x=>x.id===rid); if(!r) return toast('利用者を選んでください'); if(rid==='day') $('#sKind').value='デイ';
   const type=$('#sRule').value; const rule={type,date:$('#sDate').value,dow:$('#sDow').value,nth:$('#sNth').value,anchor:$('#sAnchor').value,day:$('#sDay').value,from:$('#sFrom').value,to:$('#sTo').value};
   if(type==='once'&&!rule.date) return toast('日付を入れてください');
   if(type==='biweekly'){ if(!rule.anchor) return toast('初回の日付を入れてください'); if(new Date(rule.anchor+'T00:00:00').getDay()!==+rule.dow) return toast('初回の日付の曜日が違います'); rule.from=rule.from||rule.anchor; }
   if(type==='range'&&!rule.from) return toast('開始日を入れてください');
   const dates=expandRule(rule); if(!dates.length) return toast('該当する日がありません');
   const kind=$('#sKind').value, text=$('#sText').value.trim();
-  const rows=dates.map(d=>({'日付':d,'利用者ID':rid,'氏名':r['氏名'],'種別':kind,'開始':$('#sStart').value,'終了':$('#sEnd').value,'内容':type==='range'?text+`（${rule.from.slice(5).replace('-','/')}～${rule.to?rule.to.slice(5).replace('-','/'):''}）`:text,'担当':'','出所':'手入力'}));
+  const rows=dates.map(d=>({'日付':d,'利用者ID':rid==='day'?'':rid,'氏名':r['氏名'],'種別':kind,'開始':$('#sStart').value,'終了':$('#sEnd').value,'内容':type==='range'?text+`（${rule.from.slice(5).replace('-','/')}～${rule.to?rule.to.slice(5).replace('-','/'):''}）`:text,'担当':'','出所':'手入力'}));
   const btn=$('#sAdd'), sm=$('#sMsg'); if(btn.disabled) return; // 連打防止
   btn.disabled=true; btn.textContent='登録中…'; sm.style.color='#1f7a3a'; sm.textContent='';
   try{ busy(true); const res=await api('addSchedules',{rows}); const n=res&&res.added!=null?res.added:dates.length; const sk=res&&res.skipped?`（同じ予定が${res.skipped}件あったので飛ばしました）`:''; sm.textContent=`✓ ${r['氏名']}：${n}件 登録しました${sk}`; toast(`${n}件登録しました`); $('#sText').value=''; loadSchList(); if(dates.includes(D.date)) loadDay(); }
