@@ -279,7 +279,7 @@ async function renderList(){
     try{
       if(mode==='cal'){
         const rid=$('#lRes').value; const r=D.residents.find(x=>x.id===rid); if(!r) return;
-        const m=await api('month',{ym,residentId:rid}); const by={};
+        const m={schedules:(await api('schedulesFrom',{from:ym+'-01',residentId:rid})).filter(s=>s['日付'].startsWith(ym))}; const by={};
         for(const s of m.schedules){ const d=+s['日付'].slice(8); (by[d]=by[d]||[]).push({start:s['開始'],end:s['終了'],cls:schCls(s),text:fmtSch(s).replace(/^\S+\s/,'')}); }
         out.innerHTML=calendarHtml(ym,by,`${esc(r['氏名'])} 様　予定表`,`（${m.schedules.length}件）`,'<span class="sch nurse">訪問看護</span><span class="sch rehab">訪問リハ</span><span class="sch helper">訪問介護</span><span class="sch day">デイ</span><span class="sch manual">往診・受診・入院等</span>');
       } else {
@@ -341,7 +341,7 @@ $('#sAdd').onclick=async()=>{
 $('#sReload').onclick=loadSchList; $('#sListRes').onchange=loadSchList;
 async function loadSchList(){
   const out=$('#sList'); out.innerHTML='<div class="muted">読み込み中…</div>';
-  try{ const from=D.date.slice(0,7)+'-01'; const list=(await api('schedulesFrom',{from,residentId:$('#sListRes').value})).sort((a,b)=>(a['日付']+a['開始']).localeCompare(b['日付']+b['開始']));
+  try{ const from=D.date.slice(0,7)+'-01'; const list=(await api('schedulesFrom',{from,residentId:$('#sListRes').value,raw:1})).sort((a,b)=>(a['日付']+a['開始']).localeCompare(b['日付']+b['開始']));
     // 手入力のグループ（同時登録）はまとめて表示
     const groups=new Map(); for(const s of list){ const g=s['出所']==='手入力'?s.id.split('-')[0]:s.id; if(!groups.has(g)) groups.set(g,{first:s,items:[]}); groups.get(g).items.push(s); }
     out.innerHTML=list.length?`<table class="grid"><tr><th>日付</th><th>氏名</th><th>予定</th><th>出所</th><th></th></tr>`+[...groups.values()].map(g=>{const s=g.first; const n=g.items.length; return `<tr><td class="l">${dateLabel(s['日付'])}${n>1?`〜 ${n}日分`:''}</td><td class="l">${esc(s['氏名'])}</td><td class="l" style="white-space:normal">${s['開始']?s['開始']+(s['終了']?'-'+s['終了']:'')+' ':''}${esc(s['種別'])} ${esc(s['内容'])} ${esc(s['担当'])}</td><td>${esc(s['出所'])}</td><td>${s['出所']==='手入力'?`<button class="btn danger" style="padding:2px 8px;font-size:11px" data-g="${n>1?s.id.split('-')[0]:''}" data-id="${s.id}">削除</button>`:''}</td></tr>`;}).join('')+'</table>':'<div class="muted">予定はありません</div>';
