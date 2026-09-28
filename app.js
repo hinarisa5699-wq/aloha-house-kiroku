@@ -444,14 +444,28 @@ $('#resCsv').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return; const buf=await f.arrayBuffer(); let text; try{ text=new TextDecoder('utf-8',{fatal:true}).decode(buf); }catch(x){ text=new TextDecoder('shift_jis').decode(buf); }
   const table=parseCsvText(text.replace(/^﻿/,'')); if(table.length<2) return toast('読み取れません');
   const head=table[0].map(s=>s.trim()); const find=(...keys)=>head.findIndex(h=>keys.some(k=>h.includes(k)));
-  let iN=find('利用者氏名','利用者名','氏名','名前'); const iK=find('利用者カナ','カナ','かな','ふりがな','フリガナ'); const iSei=find('姓'), iMei=find('名'); const iB=find('建物名'), iA=find('町名以下');
+  let iN=find('利用者氏名','利用者名','氏名','名前'); const iK=find('利用者カナ','カナ','かな','ふりがな','フリガナ'); const iSei=find('姓'), iMei=find('名'); const iB=find('建物名'), iA=find('町名以下'); const iSex=find('性別'), iBirth=find('生年月日'); // ※口座・銀行の列は読まない
   if(iN<0&&iSei<0) return toast('氏名の列が見つかりません（先頭行: '+head.slice(0,6).join(', ')+'）');
   const HOUSE=/アロハハウス|森野\s*4[-‐－ー]?17[-‐－ー]?17|森野4丁目.?17番.?17/;
-  const cands=[]; for(const row of table.slice(1)){ let name=iN>=0?row[iN]:((row[iSei]||'')+' '+(row[iMei]||'')); name=(name||'').trim(); if(!name) continue; const bld=iB>=0?(row[iB]||''):'', adr=iA>=0?(row[iA]||''):''; const isHouse=(iB>=0||iA>=0)?HOUSE.test(bld+' '+adr):true; const rm=(bld.match(/(\d{3})/)||[])[1]||''; cands.push({name,kana:iK>=0?(row[iK]||''):'',isHouse,room:rm}); }
+  const cands=[]; for(const row of table.slice(1)){ let name=iN>=0?row[iN]:((row[iSei]||'')+' '+(row[iMei]||'')); name=(name||'').trim(); if(!name) continue; const bld=iB>=0?(row[iB]||''):'', adr=iA>=0?(row[iA]||''):''; const isHouse=(iB>=0||iA>=0)?HOUSE.test(bld+' '+adr):true; const rm=(bld.match(/(\d{3})/)||[])[1]||''; cands.push({name,kana:iK>=0?(row[iK]||''):'',isHouse,room:rm,sex:iSex>=0?(row[iSex]||'').trim():'',birth:iBirth>=0?(row[iBirth]||'').trim().replace(/\//g,'-'):''}); }
   const house=cands.filter(c=>c.isHouse);
   const useOnlyHouse = house.length && house.length<cands.length ? confirm(`${cands.length}名のうち、住所がアロハハウスの方は ${house.length}名です。\n${house.map(c=>c.name+(c.room?'('+c.room+')':'')).join('、')}\n\nこの${house.length}名だけを入居者として追加しますか？（キャンセル＝全員を追加）`) : false;
-  let added=0; for(const c of (useOnlyHouse?house:cands)){ if(editRes.some(r=>normName(r['氏名'])===normName(c.name))) continue; editRes.push({id:'',氏名:c.name,ふりがな:c.kana,部屋:c.room,食事形態:'',在籍:'1',メモ:'',入居日:'',既往歴:''}); added++; }
-  D.allResidents=editRes; renderResTable(); toast(`${added}名を追加しました。部屋・食事形態を確認して「入居者を保存」を押してください`); e.target.value='';
+  let added=0, upd=0; const items=[];
+  for(const c of (useOnlyHouse?house:cands)){
+    const ex=editRes.find(r=>normName(r['氏名'])===normName(c.name));
+    if(ex){ // すでにいる方：ふりがな・性別・生年月日が空なら埋める
+      let ch=false; if(!ex['ふりがな']&&c.kana){ ex['ふりがな']=c.kana; ch=true; }
+      if(ex.id&&(c.sex||c.birth)){ const pr=(D.profiles||[]).find(p=>p['利用者ID']===ex.id&&p['キー']==='basic'); let b={}; try{ b=pr?JSON.parse(pr['値'])||{}:{}; }catch(x){ b={}; }
+        if((!b.sex&&c.sex)||(!b.birth&&c.birth)){ if(!b.sex&&c.sex) b.sex=c.sex; if(!b.birth&&c.birth) b.birth=c.birth; items.push({residentId:ex.id,key:'basic',value:b}); ch=true; } }
+      if(ch) upd++; continue; }
+    editRes.push({id:'',氏名:c.name,ふりがな:c.kana,部屋:c.room,食事形態:'',在籍:'1',メモ:'',入居日:'',既往歴:''}); added++; }
+  D.allResidents=editRes; renderResTable();
+  const st=$('#resCsvStatus'); st.textContent='保存中…';
+  try{ if(items.length){ await api('saveProfile',{items}); for(const it of items){ D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===it.residentId&&p['キー']==='basic')); D.profiles.push({'利用者ID':it.residentId,'キー':'basic','値':JSON.stringify(it.value)}); } }
+    if(added||editRes.some(r=>r['ふりがな'])){ const saved=await api('saveResidents',{residents:editRes.filter(r=>r['氏名'].trim())}); D.allResidents=saved; D.residents=saved.filter(r=>r['在籍']!=='0'); editRes=saved.map(r=>({...r})); renderResTable(); renderToday(); }
+    st.textContent=`✓ 読み込みました：新規 ${added}名、既存の方の情報を補完 ${upd}名（ふりがな・性別・生年月日）。読み飛ばし ${cands.length-(useOnlyHouse?house.length:cands.length)}名`; toast('利用者CSVを取り込みました'); }
+  catch(err){ st.textContent='⚠ 保存できませんでした: '+err.message; }
+  e.target.value='';
 };
 // ドラッグ＆ドロップ：.drop の枠に落としたファイルを中の <input type=file> に渡す
 document.addEventListener('dragover',e=>{ const d=e.target.closest&&e.target.closest('.drop'); if(d){ e.preventDefault(); d.classList.add('over'); } });
