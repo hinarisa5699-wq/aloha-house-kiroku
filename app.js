@@ -78,7 +78,7 @@ const extOf=rid=>(D.day.ext||[]).filter(e=>e['利用者ID']===rid||(rid&&e['利�
 const extLabel=e=>e['出所']==='介護記録'?('デイ'+(e['種別']?'・'+e['種別']:'')):e['出所']==='訪看記録'?'訪看':(e['出所']+(e['種別']&&e['種別']!=='ケース'?'・'+e['種別']:''));
 const extHtml=e=>`<div class="ext"><span class="m">${e['時刻']||''} ${esc(extLabel(e))}${e['記録者']?' '+esc(e['記録者']):''}</span><br>${esc(e['内容'])}</div>`;
 const schOf=rid=>D.day.schedules.filter(s=>s['利用者ID']===rid).sort((a,b)=>(a['開始']||'').localeCompare(b['開始']||''));
-const schCls=s=>({'訪看':'nurse','訪介':'helper','デイ':'day'})[s['種別']]||'manual';
+const schCls=s=>({'訪看':'nurse','訪リハ':'rehab','訪介':'helper','デイ':'day'})[s['種別']]||'manual';
 function fmtSch(s,withEnd){ const c=s['内容']||''; const body=(c.startsWith(s['種別'])||c.includes(s['種別']))?c:(s['種別']+(c?' '+c:'')); return (s['開始']?s['開始']+(withEnd&&s['終了']?'-'+s['終了']:'')+' ':'')+body+(s['担当']?' '+s['担当']:''); }
 function schHtml(s){ return `<span class="sch ${schCls(s)}">${esc(fmtSch(s,true))}</span>`; }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);}
@@ -265,7 +265,7 @@ async function renderList(){
     out.innerHTML='<div class="muted">読み込み中…</div>';
     try{ const list=(await api('schedulesFrom',{from:fmt(days[0]),residentId:rid})).filter(x=>x['日付']<=fmt(days[6]));
       const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
-      let h=`<div class="calsheet"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px"><h2 style="margin:0;font-size:17px">${esc(r['氏名'])} 様　週間予定表</h2><span class="muted">${days[0].getFullYear()}年${days[0].getMonth()+1}月${days[0].getDate()}日〜${days[6].getMonth()+1}月${days[6].getDate()}日</span><span style="margin-left:auto;font-size:11px"><span class="sch nurse">訪問看護</span><span class="sch helper">訪問介護</span><span class="sch day">デイ</span><span class="sch manual">往診・受診・入院等</span></span></div><table class="cal week"><thead><tr>`;
+      let h=`<div class="calsheet"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px"><h2 style="margin:0;font-size:17px">${esc(r['氏名'])} 様　週間予定表</h2><span class="muted">${days[0].getFullYear()}年${days[0].getMonth()+1}月${days[0].getDate()}日〜${days[6].getMonth()+1}月${days[6].getDate()}日</span><span style="margin-left:auto;font-size:11px"><span class="sch nurse">訪問看護</span><span class="sch rehab">訪問リハ</span><span class="sch helper">訪問介護</span><span class="sch day">デイ</span><span class="sch manual">往診・受診・入院等</span></span></div><table class="cal week"><thead><tr>`;
       h+=days.map(d=>`<th class="${d.getDay()===0?'sun':d.getDay()===6?'sat':''}">${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）</th>`).join('')+'</tr></thead><tbody><tr>';
       for(const d of days){ const ds=fmt(d); const evs=list.filter(x=>x['日付']===ds).sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始'])));
         h+=`<td class="${ds===todayStr()?'today':''}">`+evs.map(e=>`<div class="ev ${schCls(e)}"><span class="t">${e['開始']||''}${e['終了']?'-'+e['終了']:''}</span>${esc(e['開始']?fmtSch(e).replace(/^\S+\s/,''):fmtSch(e))}</div>`).join('')+'</td>'; }
@@ -279,7 +279,7 @@ async function renderList(){
         const rid=$('#lRes').value; const r=D.residents.find(x=>x.id===rid); if(!r) return;
         const m=await api('month',{ym,residentId:rid}); const by={};
         for(const s of m.schedules){ const d=+s['日付'].slice(8); (by[d]=by[d]||[]).push({start:s['開始'],end:s['終了'],cls:schCls(s),text:fmtSch(s).replace(/^\S+\s/,'')}); }
-        out.innerHTML=calendarHtml(ym,by,`${esc(r['氏名'])} 様　予定表`,`（${m.schedules.length}件）`,'<span class="sch nurse">訪問看護</span><span class="sch helper">訪問介護</span><span class="sch day">デイ</span><span class="sch manual">往診・受診・入院等</span>');
+        out.innerHTML=calendarHtml(ym,by,`${esc(r['氏名'])} 様　予定表`,`（${m.schedules.length}件）`,'<span class="sch nurse">訪問看護</span><span class="sch rehab">訪問リハ</span><span class="sch helper">訪問介護</span><span class="sch day">デイ</span><span class="sch manual">往診・受診・入院等</span>');
       } else {
         const list=await api('schedulesFrom',{from:ym+'-01'}); const sch=list.filter(s=>s['日付'].startsWith(ym));
         let h=`<h2 style="font-size:15px;margin:0 0 6px">予定一覧　${y}年${mo}月</h2><table class="grid"><tr><th style="width:70px">日</th>`+D.residents.map(r=>`<th>${esc(r['氏名'])}</th>`).join('')+'</tr>';
