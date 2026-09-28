@@ -338,6 +338,8 @@ $('#sAdd').onclick=async()=>{
   catch(e){ sm.style.color='#c0392b'; sm.textContent='⚠ 登録できませんでした: '+e.message; toast('失敗: '+e.message); }
   finally{ busy(false); btn.disabled=false; btn.textContent='登録'; }
 };
+// 拡張機能の同期画面を開くボタン（IDはこの端末に保存。既定は事務所PCのID）
+(function(){ const DEF='dcefdofmbomioemmibmonbeaeeeagkol'; const inp=$('#extId'), a=$('#extOpen'); if(!inp||!a) return; inp.value=LS('hc_ext_id')||DEF; const upd=()=>{ const id=inp.value.trim()||DEF; a.href='chrome-extension://'+id+'/sync.html'; }; upd(); inp.onchange=()=>{ LSs('hc_ext_id',inp.value.trim()); upd(); }; a.onclick=e=>{ upd(); if(!/Chrome/.test(navigator.userAgent)||/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)){ e.preventDefault(); toast('この画面はパソコンのChrome（拡張機能を入れたもの）で開いてください'); } }; })();
 $('#sReload').onclick=loadSchList; $('#sListRes').onchange=loadSchList;
 async function loadSchList(){
   const out=$('#sList'); out.innerHTML='<div class="muted">読み込み中…</div>';
