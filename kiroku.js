@@ -211,6 +211,21 @@ function fillDates(records){
   }
 }
 // 戻り値: {users:{key:{name,records:[{date,day,kind,time,content,recorder}]}}, diag}
+// 1件の記録がページ境界や罫線で2行に分かれたものをつなぐ（同じ日付・時刻・種別で、前の文が「。」で終わらず、続きがひらがな等で始まる／ページをまたぐ）
+function mergeSplitRecords(records){
+  for (let i=records.length-1; i>0; i--){
+    const a=records[i-1], b=records[i];
+    if (!a.time || a.time!==b.time || a.kind!==b.kind || (a.date&&b.date&&a.date!==b.date)) continue;
+    const ac=(a.content||'').trim(), bc=(b.content||'').trim(); if(!ac||!bc) continue;
+    const across = a.last && b.first && b.page===a.page+1;
+    const endsSentence=/[。！？!?」』）)]$/.test(ac);
+    const contStart=/^[ぁ-ん、。ー]/.test(bc);
+    if (endsSentence && !across) continue;
+    if (!across && !contStart) continue;
+    a.content=ac+bc; a.recorder=b.recorder||a.recorder; a.last=b.last; if(!a.date) a.date=b.date;
+    records.splice(i,1);
+  }
+}
 async function parseKirokuDoc(pdf){
   const users = {};
   const diag = { pages:pdf.numPages, nippouPages:0, kirokuPages:0, attRows:0, noteRows:0, kirokuRows:0, skipped:[], staff:{} };
@@ -239,6 +254,7 @@ async function parseKirokuDoc(pdf){
     recs.forEach((r,i)=>{ r.page = p; r.first = (i===0); r.last = (i===recs.length-1); users[key].records.push(r); });
     diag.kirokuRows += recs.length;
   }
+  kirokuKeys.forEach(k=>mergeSplitRecords(users[k].records));
   kirokuKeys.forEach(k=>fillDates(users[k].records));
   return { users, diag };
 }
