@@ -439,7 +439,7 @@ async function importLineFile(f, st, ym){
       const byYm={}; srows.forEach(r=>{ (byYm[r['日付'].slice(0,7)]=byYm[r['日付'].slice(0,7)]||[]).push(r); });
       for(const [sym,list] of Object.entries(byYm)){ step(`予定を保存中${pre}`); const a=await api('importSchedules',{ym:sym,source:'LINE',rows:list,append:true}); totalSch+=a.added; }
       // 食事量（「完食」など）→ 食事記録へ（職員が入力済みのものは上書きしない）
-      const mrows=(res.meals||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'食事':it.meal,'主食':it.staple,'副食':it.side,'水分':it.water,'症状':it.sym||'','備考':'LINEより'}:null; }).filter(Boolean);
+      const mrows=(res.meals||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'食事':it.meal,'主食':it.staple,'副食':it.side,'汁物':it.soup,'水分':it.water,'症状':it.sym||'','備考':'LINEより'}:null; }).filter(Boolean);
       if(mrows.length){ step(`食事記録を保存中${pre}`); try{ const a=await api('autoMeals',{rows:mrows,source:'LINE'}); totalMeals+=a.saved||0; }catch(e){} }
     }
     step('仕上げ中'); await saveCursor(); stampImport(['LINE']); curStep='';
