@@ -322,7 +322,7 @@ function buildExtRows(results, opt){
         if(isDiary){
           for(const sg of splitDiary(content, residents)){
             if(sg.resident) diary.push({'日付':date,'時刻':time,'利用者ID':sg.resident.id,'氏名':sg.resident['氏名'],'種別':(sg.kind&&sg.kind!=='特記')?sg.kind:(isMorningRec?'モーニングコール':(sg.kind||r.kind||'')),'内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'});
-            else if(/オンコール|モーニングコール|全員|入居者/.test(sg.text)) diary.push({'日付':date,'時刻':time,'利用者ID':'','氏名':'（全体）','種別':sg.kind||r.kind||'','内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'});
+            else if(sg.text.replace(/[\s、。]/g,'').length>=4) diary.push({'日付':date,'時刻':time,'利用者ID':'','氏名':'（全体）','種別':sg.kind||(/地震|災害|避難|停電|火災|緊急/.test(sg.text)?'緊急':'')||r.kind||'','内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'}); // 名前のない文（地震・設備・全体の様子など）はハウス全体の記録として残す
           }
         } else own.push({'日付':date,'時刻':time,'利用者ID':resident.id,'氏名':resident['氏名'],'種別':r.kind||'','内容':content,'記録者':r.recorder||'','出所':'介護記録'});
       }
