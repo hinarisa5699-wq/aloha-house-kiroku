@@ -292,7 +292,7 @@ function parseLine(text){
   msgs.forEach(m=>{ delete m._raw; });
   return msgs;
 }
-const RE_HOUSE_KW = /モーニングコール|オンコール|服薬|お薬|内服|軟膏|塗布|外用|貼付|処方|受診|往診|訪問診療|訪問看護|歯科|通院|ご家族|家族|面会|来訪|朝食|昼食|夕食|朝ご飯|昼ご飯|夕ご飯|完食|食事|入居者|号室|ハウス/;
+const RE_HOUSE_KW = /地震|震度|災害|台風|停電|断水|火災|警報|避難|安否|無事|モーニングコール|オンコール|服薬|お薬|内服|軟膏|塗布|外用|貼付|処方|受診|往診|訪問診療|訪問看護|歯科|通院|ご家族|家族|面会|来訪|朝食|昼食|夕食|朝ご飯|昼ご飯|夕ご飯|完食|食事|入居者|号室|ハウス/;
 
 // ===== 取り込み行の組み立て（アプリ・Chrome拡張で共用） =====
 const NOT_STAFF_RE=/カイテク|訪問システム|システム|機能訓練|アロハ花子|花子$/;
@@ -330,22 +330,25 @@ function buildExtRows(results, opt){
         if(date!==lastDate){ lastDate=date; lastTime=''; morning=false; }
         let time=(r.time||'').split(/[〜~]/)[0].replace('：',':').trim();
         const tm=content.match(/^(\d{1,2}:\d{2})\s*/); if(tm){ if(!time) time=tm[1].padStart(5,'0'); content=content.slice(tm[0].length); }
-        if(time){ lastTime=time; morning=false; } else time=lastTime;
+        let tInh=false; if(time){ lastTime=time; morning=false; } else { time=lastTime; tInh=true; }
         const rc=content.match(/[（(]\s*[★☆]?\s*([^（）()]{2,12})\s*[)）]\s*$/); if(rc){ if(!r.recorder) r.recorder=rc[1]; content=content.slice(0,rc.index).trim(); }
         if(/^モーニングコールの様子/.test(content)){ morning=true; content=content.replace(/^モーニングコールの様子[:：]?/,'').trim(); if(!content) continue; }
         content=content.replace(/^\d{3}(?=[一-龥])/,'').replace(/\s*\d{3}$/,''); if(!content) continue;
         const isMorningRec=morning && r.kind==='特記' && isDiary;
         if(isDiary){
           for(const sg of splitDiary(content, residents)){
-            if(sg.resident) diary.push({'日付':date,'時刻':time,'利用者ID':sg.resident.id,'氏名':sg.resident['氏名'],'種別':(sg.kind&&sg.kind!=='特記')?sg.kind:(isMorningRec?'モーニングコール':(sg.kind||r.kind||'')),'内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'});
-            else if(sg.text.replace(/[\s、。]/g,'').length>=4) diary.push({'日付':date,'時刻':time,'利用者ID':'','氏名':'（全体）','種別':sg.kind||(/地震|災害|避難|停電|火災|緊急/.test(sg.text)?'緊急':'')||r.kind||'','内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌'}); // 名前のない文（地震・設備・全体の様子など）はハウス全体の記録として残す
+            if(sg.resident) diary.push({'日付':date,'時刻':time,'利用者ID':sg.resident.id,'氏名':sg.resident['氏名'],'種別':(sg.kind&&sg.kind!=='特記')?sg.kind:(isMorningRec?'モーニングコール':(sg.kind||r.kind||'')),'内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌',_tInh:tInh});
+            else if(sg.text.replace(/[\s、。]/g,'').length>=4) diary.push({'日付':date,'時刻':time,'利用者ID':'','氏名':'（全体）','種別':sg.kind||(/地震|災害|避難|停電|火災|緊急/.test(sg.text)?'緊急':'')||r.kind||'','内容':sg.text,'記録者':r.recorder||'','出所':'ハウス日誌',_tInh:tInh}); // 名前のない文（地震・設備・全体の様子など）はハウス全体の記録として残す
           }
-        } else own.push({'日付':date,'時刻':time,'利用者ID':resident.id,'氏名':resident['氏名'],'種別':r.kind||'','内容':content,'記録者':r.recorder||'','出所':'介護記録'});
+        } else own.push({'日付':date,'時刻':time,'利用者ID':resident.id,'氏名':resident['氏名'],'種別':r.kind||'','内容':content,'記録者':r.recorder||'','出所':'介護記録',_tInh:tInh});
       }
     }
   }
-  for(const r of own.concat(diary)){ const n=cleanRecorder(r['記録者']); if(n) staffCounts[n]=(staffCounts[n]||0)+1; }
-  return {own, diary, staffCounts, pages};
+  // 同じ日・同じ人・同じ内容が2回出たら1件にする（PDFで同じ記録が2か所に印字される／時刻を引き継いだ行が重なる）。時刻が自分で付いている方を残す
+  const dedupe=list=>{ const seen=new Map(); for(const r of list){ const k=r['日付']+'|'+r['利用者ID']+'|'+r['氏名']+'|'+String(r['内容']).replace(/\s/g,''); const p=seen.get(k); if(!p||(p._tInh&&!r._tInh)) seen.set(k,r); } return [...seen.values()].map(r=>{ delete r._tInh; return r; }); };
+  const own2=dedupe(own), diary2=dedupe(diary);
+  for(const r of own2.concat(diary2)){ const n=cleanRecorder(r['記録者']); if(n) staffCounts[n]=(staffCounts[n]||0)+1; }
+  return {own:own2, diary:diary2, staffCounts, pages};
 }
 // 記入者候補：件数順・部分一致（姓だけ等）や職員でない名前を除外
 function staffCandidates(staffCounts, existing){
