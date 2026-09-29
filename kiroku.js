@@ -345,7 +345,11 @@ function buildExtRows(results, opt){
     }
   }
   // 同じ日・同じ人・同じ内容が2回出たら1件にする（PDFで同じ記録が2か所に印字される／時刻を引き継いだ行が重なる）。時刻が自分で付いている方を残す
-  const dedupe=list=>{ const seen=new Map(); for(const r of list){ const k=r['日付']+'|'+r['利用者ID']+'|'+r['氏名']+'|'+String(r['内容']).replace(/\s/g,''); const p=seen.get(k); if(!p||(p._tInh&&!r._tInh)) seen.set(k,r); } return [...seen.values()].map(r=>{ delete r._tInh; return r; }); };
+  const dedupe=list=>{ const seen=new Map(); const nz=s=>String(s).replace(/【特記】/g,'').replace(/[\s、。]/g,''); for(const r of list){ const k=r['日付']+'|'+r['利用者ID']+'|'+r['氏名']+'|'+nz(r['内容']); const p=seen.get(k); if(!p||(p._tInh&&!r._tInh)) seen.set(k,r); }
+    // 片方がもう片方の一部（「オンコール呼び出し0件」と「オンコール呼び出し0件 4:45震度2…」など）なら長いほうだけ残す
+    const arr=[...seen.values()]; const drop=new Set();
+    for(let i=0;i<arr.length;i++) for(let j=0;j<arr.length;j++){ if(i===j||drop.has(i)) continue; const a=arr[i], b=arr[j]; if(a['日付']!==b['日付']||a['利用者ID']!==b['利用者ID']||a['氏名']!==b['氏名']) continue; const na=nz(a['内容']), nb=nz(b['内容']); if(na.length<nb.length&&na.length>=4&&nb.indexOf(na)>=0) drop.add(i); }
+    return arr.filter((r,i)=>!drop.has(i)).map(r=>{ delete r._tInh; r['内容']=String(r['内容']).replace(/^【特記】\s*/,''); return r; }); };
   const own2=dedupe(own), diary2=dedupe(diary);
   for(const r of own2.concat(diary2)){ const n=cleanRecorder(r['記録者']); if(n) staffCounts[n]=(staffCounts[n]||0)+1; }
   return {own:own2, diary:diary2, staffCounts, pages};
