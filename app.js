@@ -92,7 +92,7 @@ function chip(m){
   if(m['主食']==='欠') return '<span class="chip skip">欠食</span>';
   const st=+m['主食'], sd=+m['副食']; const sym=m['症状'];
   const c=sym?'sym':(st<=5||sd<=5)?'low':'done';
-  return `<span class="chip ${c}">${m['主食']}/${m['副食']}</span>`;
+  return `<span class="chip ${c}">${m['主食']}/${m['副食']}${m['汁物']&&m['汁物']!=='なし'?'/'+m['汁物']:''}${m['服薬']==='済'?' 薬✓'+(m['服薬時刻']||''):m['服薬']==='未'?' 薬未':''}</span>`;
 }
 // 今日の予定（全員分を時刻順に一覧）
 function renderTodaySch(){
@@ -128,7 +128,7 @@ function renderToday(){
 function openEntry(rid){ D.cur=D.residents.find(r=>r.id===rid)||D.allResidents.find(r=>r.id===rid); const h=new Date().getHours(); D.meal=h<10?'朝食':h<15?'昼食':h<17?'おやつ':'夕食'; show('entry'); renderEntry(); window.scrollTo(0,0); }
 $('#backBtn').onclick=()=>show('today');
 function segButtons(id, vals, onPick){ const el=$('#'+id); el.innerHTML=vals.map(v=>`<button type="button" data-v="${v}">${v}</button>`).join(''); el.onclick=e=>{const b=e.target.closest('button'); if(!b) return; if(el.classList.contains('multi')){ b.classList.toggle('on'); } else { [...el.children].forEach(x=>x.classList.toggle('on',x===b)); } onPick&&onPick(); }; }
-segButtons('staple',['0','2','5','8','10','欠','注文なし']); segButtons('side',['0','2','5','8','10']); segButtons('water',['0','50','100','150','200','300']); $('#sym').classList.add('multi'); segButtons('sym',SYMS);
+segButtons('staple',['0','2','5','8','10','欠','注文なし']); segButtons('side',['0','2','5','8','10']); segButtons('soup',['0','2','5','8','10','なし']); segButtons('med',['済','未','薬なし']); segButtons('water',['0','50','100','150','200','300']); $('#sym').classList.add('multi'); segButtons('sym',SYMS);
 const segVal=id=>{const b=$('#'+id+' button.on');return b?b.dataset.v:'';};
 const segSet=(id,v)=>{$$('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));};
 function renderStaffSel(){ const cur=LS('hc_staff')||''; $('#staff').innerHTML='<option value="">（選択）</option>'+D.staff.map(s=>`<option ${s===cur?'selected':''}>${esc(s)}</option>`).join(''); $('#form').innerHTML=D.forms.map(f=>`<option>${esc(f)}</option>`).join(''); }
@@ -139,7 +139,7 @@ function renderEntry(){
   $('#mealTabs').innerHTML=MEALS.map(m=>`<button type="button" class="${m===D.meal?'on':''} ${mealOf(r.id,m)?'done':''}" data-m="${m}">${m}</button>`).join('');
   $$('#mealTabs button').forEach(b=>b.onclick=()=>{D.meal=b.dataset.m;renderEntry();});
   const m=mealOf(r.id,D.meal)||{};
-  segSet('staple',m['主食']||''); segSet('side',m['副食']||''); segSet('water',m['水分']||'');
+  segSet('staple',m['主食']||''); segSet('side',m['副食']||''); segSet('soup',m['汁物']||''); segSet('med',m['服薬']||''); $('#medV').textContent=m['服薬']==='済'?('✓ '+(m['服薬時刻']||'')+(m['記入者']?' '+m['記入者']:'')):''; segSet('water',m['水分']||'');
   $('#form').value=m['食事形態']||r['食事形態']||D.forms[0]; if(!$('#form').value) $('#form').selectedIndex=0;
   const syms=(m['症状']||'').split(',').filter(Boolean); $$('#sym button').forEach(b=>b.classList.toggle('on',syms.includes(b.dataset.v)));
   $('#memo').value=m['備考']||''; if(m['記入者']) $('#staff').value=m['記入者'];
@@ -183,7 +183,7 @@ $('#saveMeal').onclick=async()=>{
   const noMeal=staple==='欠'||staple==='注文なし'; // 欠食／注文なし（食事を出していない）
   if(!noMeal&&!side) return ng('副食の量を選んでください',$('#side'));
   const staff=$('#staff').value; if(!staff) return ng('記入者を選んでください（下の「記入者」）',$('#staff')); LSs('hc_staff',staff); msg.textContent='';
-  const rec={id:(mealOf(r.id,D.meal)||{}).id||'', '日付':D.date,'食事':D.meal,'利用者ID':r.id,'氏名':r['氏名'],'主食':staple,'副食':noMeal?staple:side,'水分':segVal('water'),'食事形態':$('#form').value,
+  const rec={id:(mealOf(r.id,D.meal)||{}).id||'', '日付':D.date,'食事':D.meal,'利用者ID':r.id,'氏名':r['氏名'],'主食':staple,'副食':noMeal?staple:side,'汁物':noMeal?'':segVal('soup'),'服薬':segVal('med'),'服薬時刻':(()=>{ const v=segVal('med'); if(v!=='済') return ''; const cur=mealOf(r.id,D.meal); if(cur&&cur['服薬']==='済'&&cur['服薬時刻']) return cur['服薬時刻']; const n=new Date(); return pad(n.getHours())+':'+pad(n.getMinutes()); })(),'水分':segVal('water'),'食事形態':$('#form').value,
     '症状':$$('#sym button.on').map(b=>b.dataset.v).join(','),'備考':$('#memo').value.trim(),'記入者':staff};
   try{ busy(true); $('#saveMeal').disabled=true; $('#saveMeal').textContent='保存中…'; const saved=await api('saveMeal',{record:rec}); D.day.meals=D.day.meals.filter(m=>!(m['利用者ID']===r.id&&m['食事']===D.meal)); D.day.meals.push(saved); toast(`${r['氏名']} ${D.meal} 保存しました`); msg.style.color='#1f7a3a'; msg.textContent=`✓ ${D.meal} 保存しました`; setTimeout(()=>{ msg.textContent=''; msg.style.color='#c0392b'; },3000); renderEntry(); renderToday(); }
   catch(e){ msg.textContent='⚠ 保存できませんでした: '+e.message; toast('保存失敗: '+e.message); } finally{ busy(false); $('#saveMeal').disabled=false; $('#saveMeal').textContent='保存'; }
@@ -251,7 +251,7 @@ async function renderList(){
   const mode=$('#lMode').value; const out=$('#listOut');
   $('#lRes').innerHTML=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join('');
   if(mode==='day'){
-    const cell=m=>{ if(!m) return '<td></td>'; if(m['主食']==='注文なし') return '<td class="skip">注文なし</td>'; if(m['主食']==='欠') return '<td class="skip">欠食</td>'; const cls=m['症状']?'sym':(+m['主食']<=5||+m['副食']<=5)?'low':''; return `<td class="${cls}">${m['主食']}/${m['副食']}${m['水分']?'<br><small>'+m['水分']+'ml</small>':''}${m['症状']?'<br><small>'+esc(m['症状'])+'</small>':''}${m['備考']?'<br><small>'+esc(m['備考'])+'</small>':''}</td>`; };
+    const cell=m=>{ if(!m) return '<td></td>'; if(m['主食']==='注文なし') return '<td class="skip">注文なし</td>'; if(m['主食']==='欠') return '<td class="skip">欠食</td>'; const cls=m['症状']?'sym':(+m['主食']<=5||+m['副食']<=5)?'low':''; return `<td class="${cls}">${m['主食']}/${m['副食']}${m['汁物']&&m['汁物']!=='なし'?'/'+m['汁物']:''}${m['服薬']==='済'?' 薬✓'+(m['服薬時刻']||''):m['服薬']==='未'?' <b style="color:#b3261e">薬未</b>':''}${m['水分']?'<br><small>'+m['水分']+'ml</small>':''}${m['症状']?'<br><small>'+esc(m['症状'])+'</small>':''}${m['備考']?'<br><small>'+esc(m['備考'])+'</small>':''}</td>`; };
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">この日の全員（食事・予定・記録）　${D.date.replace(/-/g,'/')}(${WD[new Date(D.date+'T00:00:00').getDay()]})</h2><table class="grid stk2"><tr><th>部屋</th><th>氏名</th><th>朝食<br>主/副</th><th>昼食<br>主/副</th><th>おやつ</th><th>夕食<br>主/副</th><th>予定</th><th>様子・特記</th><th>他部署の記録<br><span style="font-weight:400;font-size:10.5px"><span class="xt src-nurse" style="display:inline-block;padding:0 4px">訪看</span> <span class="xt src-helper" style="display:inline-block;padding:0 4px">訪介</span> <span class="xt src-day" style="display:inline-block;padding:0 4px">デイ</span> <span class="xt src-line" style="display:inline-block;padding:0 4px">LINE</span></span></th></tr>`+
       D.residents.map(r=>`<tr><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td>${['朝食','昼食','おやつ','夕食'].map(m=>cell(mealOf(r.id,m))).join('')}<td class="l" style="white-space:normal;text-align:left">${schOf(r.id).map(s=>esc(fmtSch(s))).join('<br>')}</td><td style="text-align:left">${D.day.notes.filter(n=>n['利用者ID']===r.id).map(n=>`${n['時刻']||''} ${esc(n['種別'])}:${esc(n['内容'])}`).join('<br>')}</td><td style="text-align:left">${extOf(r.id).map(extCell).join('')}</td></tr>`).join('')+'</table><div class="legend">数字は主食/副食の摂取割合（10=全量）。橙=半分以下、赤=症状あり。</div>';
   } else if(mode==='info'){
@@ -294,7 +294,7 @@ async function renderList(){
     const rid=$('#lRes').value; const r=D.residents.find(x=>x.id===rid); if(!r) return; const ym=D.date.slice(0,7);
     out.innerHTML='<div class="muted">読み込み中…</div>';
     try{ const m=await api('month',{ym,residentId:rid}); const [y,mo]=ym.split('-').map(Number); const days=new Date(y,mo,0).getDate();
-      const cell=x=>{ if(!x) return '<td></td>'; if(x['主食']==='注文なし') return '<td class="skip">なし</td>'; if(x['主食']==='欠') return '<td class="skip">欠</td>'; const cls=x['症状']?'sym':(+x['主食']<=5||+x['副食']<=5)?'low':''; return `<td class="${cls}">${x['主食']}/${x['副食']}</td>`; };
+      const cell=x=>{ if(!x) return '<td></td>'; if(x['主食']==='注文なし') return '<td class="skip">なし</td>'; if(x['主食']==='欠') return '<td class="skip">欠</td>'; const cls=x['症状']?'sym':(+x['主食']<=5||+x['副食']<=5)?'low':''; return `<td class="${cls}">${x['主食']}/${x['副食']}${x['汁物']&&x['汁物']!=='なし'?'/'+x['汁物']:''}${x['服薬']==='済'?' 薬✓'+(x['服薬時刻']||''):x['服薬']==='未'?' 薬未':''}</td>`; };
       let h=`<h2 style="font-size:15px;margin:0 0 6px">${esc(r['氏名'])} 様　${y}年${mo}月　食事・様子記録</h2><table class="grid stk1"><tr><th>日</th><th>朝</th><th>昼</th><th>おやつ</th><th>夕</th><th>水分</th><th>症状・備考</th><th>様子・特記</th><th>他部署の記録<br><span style="font-weight:400;font-size:10.5px"><span class="xt src-nurse" style="display:inline-block;padding:0 4px">訪看</span> <span class="xt src-helper" style="display:inline-block;padding:0 4px">訪介</span> <span class="xt src-day" style="display:inline-block;padding:0 4px">デイ</span> <span class="xt src-line" style="display:inline-block;padding:0 4px">LINE</span></span></th><th>予定</th></tr>`;
       for(let d=1;d<=days;d++){ const ds=`${ym}-${pad(d)}`; const ms=m.meals.filter(x=>x['日付']===ds); const get=k=>ms.find(x=>x['食事']===k); const water=ms.reduce((a,x)=>a+(+x['水分']||0),0);
         h+=`<tr><td>${d}(${WD[new Date(y,mo-1,d).getDay()]})</td>${['朝食','昼食','おやつ','夕食'].map(k=>cell(get(k))).join('')}<td>${water||''}</td><td style="text-align:left">${ms.map(x=>[x['症状'],x['備考']].filter(Boolean).join(' ')).filter(Boolean).map(esc).join('<br>')}</td><td style="text-align:left">${m.notes.filter(n=>n['日付']===ds).map(n=>`${n['時刻']||''} ${esc(n['種別'])}:${esc(n['内容'])}`).join('<br>')}</td><td style="text-align:left">${(m.ext||[]).filter(e=>e['日付']===ds&&e['利用者ID']===rid).map(extCell).join('')}</td><td style="text-align:left">${m.schedules.filter(s=>s['日付']===ds).map(s=>esc(fmtSch(s))).join('<br>')}</td></tr>`; }
