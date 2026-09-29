@@ -402,7 +402,9 @@ $('#impKiroku').onchange=async e=>{
 };
 async function importLineFile(f, st, ym){
   const [y,m]=ym.split('-').map(Number);
-  try{ busy(true); const text=new TextDecoder('utf-8').decode(await f.arrayBuffer());
+  // 進み具合を「⏳ 何をしているか（経過秒）」で見せる（AIの整理とGASの保存で1〜2分かかることがある）
+  const t0=Date.now(); let curStep=''; const tick=()=>{ if(curStep) st.innerHTML=`<span style="font-weight:700;color:#7a5a00">⏳ ${esc(curStep)}</span> <span class="muted">（${Math.round((Date.now()-t0)/1000)}秒経過）</span>`; }; const tm=setInterval(tick,1000); const step=x=>{ curStep=x; tick(); };
+  try{ busy(true); step('トーク履歴を読み込み中'); const text=new TextDecoder('utf-8').decode(await f.arrayBuffer());
     const parsed=parseLine(text); const all=parsed.filter(g=>g.y===y&&g.m===m);
     const names=D.residents.map(r=>r['氏名']); const sns=names.map(surnameOf).filter(s=>s.length>=2);
     // 前回どこまで読んだか（月ごとのカーソル）。最後に読んだ投稿を探して、その続きだけ対象にする
@@ -416,31 +418,34 @@ async function importLineFile(f, st, ym){
       .map(g=>({date:`${g.y}-${pad(g.m)}-${pad(g.d)}`,time:g.time,sender:g.sender,text:g.text.slice(0,600)}));
     if(!all.length){ const months=[...new Set(parsed.map(g=>`${g.y}-${pad(g.m)}`))].sort(); throw new Error(`${ym}の投稿がありません（このファイルにある月：${months.slice(-6).join('、')}）`); }
     const saveCursor=async()=>{ const last=all[all.length-1]; await sProf(curKey,{n:all.length,last:sig(last),lastAt:`${last.y}-${pad(last.m)}-${pad(last.d)} ${last.time||''}`,at:new Date().toISOString()}); };
-    if(!fresh.length){ st.textContent=`前回（${all.length}通目まで）以降の新しい投稿はありません`; return; }
-    if(!picked.length){ await saveCursor(); st.textContent=`新しい投稿${fresh.length}通に入居者に関するものはありませんでした（次回はこの続きから読みます）`; return; }
+    if(!fresh.length){ curStep=''; st.textContent=`前回（${all.length}通目まで）以降の新しい投稿はありません`; return; }
+    if(!picked.length){ await saveCursor(); curStep=''; st.textContent=`新しい投稿${fresh.length}通に入居者に関するものはありませんでした（次回はこの続きから読みます）`; return; }
     const msg=start>0?`${ym}のLINE投稿 新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`;
-    if(!confirm(msg)) { st.textContent='中止しました'; return; }
+    if(!confirm(msg)) { curStep=''; st.textContent='中止しました'; return; }
     const CH=60; let total=0, totalDiary=0, totalSch=0, totalMeals=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
-    for(let i=0;i<picked.length;i+=CH){ st.textContent=`AI抽出中… ${Math.min(i+CH,picked.length)}/${picked.length}通`;
+    const nchunk=Math.ceil(picked.length/CH);
+    for(let i=0;i<picked.length;i+=CH){ const ci=Math.floor(i/CH)+1; const pre=nchunk>1?`（${ci}/${nchunk}回目）`:'';
+      step(`AIが投稿を整理中 ${Math.min(i+CH,picked.length)}/${picked.length}通${pre}…30秒〜1分ほどかかります`);
       const res=await api('extractLine',{residents:names,messages:picked.slice(i,i+CH)});
+      step(`記録を保存中${pre}`);
       const rows=res.items.map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.content,'記録者':'','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
       await api('importExt',{key:ym+'|LINE',rows,append:start>0||i>0}); total+=rows.length;
       // 個人日誌
       const drows=(res.diary||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.text,'記入者':'LINE','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
-      if(drows.length){ await api('importDiary',{key:ym+'|LINE',rows:drows,append:start>0||i>0}); totalDiary+=drows.length; }
+      if(drows.length){ step(`日誌を保存中${pre}`); await api('importDiary',{key:ym+'|LINE',rows:drows,append:start>0||i>0}); totalDiary+=drows.length; }
       // 予定（入居者個人／アロハハウス全体）：追加のみ
       const kindMap=k=>({'訪看':'訪看','訪介':'訪介','受診':'受診','往診':'往診','入院':'入院','退院':'退院','面会':'面会','外出':'外出','行事':'行事','業者':'業者','会議':'会議'})[k]||'その他';
       const srows=(res.schedules||[]).map(it=>{ if(it.resident==='アロハハウス') return {'日付':it.date,'利用者ID':'','氏名':'アロハハウス','種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}; const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}:null; }).filter(Boolean);
       const byYm={}; srows.forEach(r=>{ (byYm[r['日付'].slice(0,7)]=byYm[r['日付'].slice(0,7)]||[]).push(r); });
-      for(const [sym,list] of Object.entries(byYm)){ const a=await api('importSchedules',{ym:sym,source:'LINE',rows:list,append:true}); totalSch+=a.added; }
+      for(const [sym,list] of Object.entries(byYm)){ step(`予定を保存中${pre}`); const a=await api('importSchedules',{ym:sym,source:'LINE',rows:list,append:true}); totalSch+=a.added; }
       // 食事量（「完食」など）→ 食事記録へ（職員が入力済みのものは上書きしない）
       const mrows=(res.meals||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'食事':it.meal,'主食':it.staple,'副食':it.side,'水分':it.water,'症状':it.sym||'','備考':'LINEより'}:null; }).filter(Boolean);
-      if(mrows.length){ try{ const a=await api('autoMeals',{rows:mrows,source:'LINE'}); totalMeals+=a.saved||0; }catch(e){} }
+      if(mrows.length){ step(`食事記録を保存中${pre}`); try{ const a=await api('autoMeals',{rows:mrows,source:'LINE'}); totalMeals+=a.saved||0; }catch(e){} }
     }
-    await saveCursor(); stampImport(['LINE']);
-    st.textContent=`LINE ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件・食事${totalMeals}件を保存しました。日誌タブと予定タブで確認し、違うものは削除してください`;
+    step('仕上げ中'); await saveCursor(); stampImport(['LINE']); curStep='';
+    st.innerHTML=`<span style="font-weight:700;color:#1f7a3a">✓ 完了</span>　LINE ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件・食事${totalMeals}件を保存しました（${Math.round((Date.now()-t0)/1000)}秒）。日誌タブと予定タブで確認し、違うものは削除してください`;
     loadDay(); if($('#p-set').classList.contains('on')) loadExtList();
-  }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); }
+  }catch(err){ curStep=''; st.innerHTML='<span style="color:#b3261e;font-weight:700">⚠ エラー</span> '+esc(err.message); console.error(err); } finally{ clearInterval(tm); busy(false); }
 }
 if($('#impLine')) $('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
 $('#impLine2').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#lineStatus'),$('#lineYM').value); e.target.value=''; if($('#lineRedo')) $('#lineRedo').checked=false; };
