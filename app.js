@@ -16,7 +16,7 @@ const encCfg=c=>btoa(unescape(encodeURIComponent(JSON.stringify({u:c.url,t:c.tok
 let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')||''};
 // スマホ・タブレット用リンク（?s=…&m=1）で開いた端末は「設定」タブを出さない（接続先はリンクに入っているので手で触る必要がない）
 (function(){ if(/[?&]m=1(&|$|#)/.test(location.search)) LSs('hc_mode','m'); if(LS('hc_mode')==='m') document.body.classList.add('fixedcfg'); })();
-(function(){ const m=(location.search+location.hash).match(/[?#&]s=([^&#]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; history.replaceState(null,'',location.pathname); } if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
+(function(){ const m=(location.search+location.hash).match(/[?#&]s=([^&#]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; } /* ?s= はURLに残す（ブラウザの保存データが消えても、リロードやブックマークで接続先が復元できるように） */ if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
   if(!cfg.url) throw new Error('設定でGASのURLを入れてください');
@@ -56,6 +56,7 @@ function dateLabel(s){const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/
 async function boot(){
   $('#cfgUrl').value=cfg.url; $('#cfgToken').value=cfg.token; $('#formsText').value=D.forms.join(',');
   if(!cfg.url){ $('#todayList').innerHTML='<div class="card">はじめに「設定」でGASのURLと合言葉を入れてください。</div>'; show('set'); return; }
+  if(!(+LS('hc_login')>Date.now()) && +CK('hc_login')>Date.now()) LSs('hc_login',CK('hc_login')); // ログイン期限はCookieにも控える
   if(!(+LS('hc_login')>Date.now())){ // ログイン：まずパスワード画面をすぐ出す（サーバ側でパスワード未設定なら裏で確認して自動で通す）
     $('#loginGate').classList.remove('hide'); $('#loginPw').focus();
     api('login',{pw:''}).then(r=>{ if(r&&r.none){ LSs('hc_login',String(Date.now()+30*86400000)); $('#loginGate').classList.add('hide'); boot(); } }).catch(()=>{});
@@ -131,7 +132,7 @@ function renderToday(){
 // ===== 入力 =====
 function openEntry(rid){ D.cur=D.residents.find(r=>r.id===rid)||D.allResidents.find(r=>r.id===rid); const h=new Date().getHours(); D.meal=h<10?'朝食':h<15?'昼食':h<17?'おやつ':'夕食'; show('entry'); renderEntry(); window.scrollTo(0,0); }
 $('#backBtn').onclick=()=>show('today');
-function segButtons(id, vals, onPick){ const el=$('#'+id); el.innerHTML=vals.map(v=>`<button type="button" data-v="${v}">${v}</button>`).join(''); el.onclick=e=>{const b=e.target.closest('button'); if(!b) return; if(el.classList.contains('multi')){ b.classList.toggle('on'); } else { [...el.children].forEach(x=>x.classList.toggle('on',x===b)); } onPick&&onPick(); }; }
+function segButtons(id, vals, onPick){ const el=$('#'+id); el.innerHTML=vals.map(v=>`<button type="button" data-v="${v}">${v}</button>`).join(''); el.onclick=e=>{const b=e.target.closest('button'); if(!b) return; if(el.classList.contains('multi')){ b.classList.toggle('on'); } else { const was=b.classList.contains('on'); [...el.children].forEach(x=>x.classList.toggle('on',x===b&&!was)); } onPick&&onPick(); }; } // 選んでいるボタンをもう一度押すと取り消し
 segButtons('staple',['0','2','5','8','10','欠','注文なし']); segButtons('side',['0','2','5','8','10']); segButtons('soup',['0','2','5','8','10','なし']); segButtons('med',['済','未','薬なし']); segButtons('water',['0','50','100','150','200','300']); $('#sym').classList.add('multi'); segButtons('sym',SYMS);
 const segVal=id=>{const b=$('#'+id+' button.on');return b?b.dataset.v:'';};
 const segSet=(id,v)=>{$$('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));};
@@ -469,10 +470,10 @@ async function loadExtList(){
 
 // ===== 設定 =====
 $('#cfgSave').onclick=async()=>{ cfg.url=$('#cfgUrl').value.trim(); cfg.token=$('#cfgToken').value.replace(/[\s\u3000]+/g,''); LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); $('#cfgStatus').textContent='接続中…'; try{ await api('ping'); $('#cfgStatus').textContent='接続OK'; await boot(); }catch(e){ $('#cfgStatus').textContent='接続できません: '+e.message; } };
-async function doLogin(){ const pw=$('#loginPw').value.trim(); if(!pw) return; $('#loginMsg').textContent='確認中…'; try{ const r=await api('login',{pw}); LSs('hc_login',String(r.until||Date.now()+30*86400000)); $('#loginGate').classList.add('hide'); $('#loginPw').value=''; $('#loginMsg').textContent=''; await boot(); }catch(e){ $('#loginMsg').textContent=e.message; } }
+async function doLogin(){ const pw=$('#loginPw').value.trim(); if(!pw) return; $('#loginMsg').textContent='確認中…'; try{ const r=await api('login',{pw}); LSs('hc_login',String(r.until||Date.now()+30*86400000)); CKs('hc_login',String(r.until||Date.now()+30*86400000)); $('#loginGate').classList.add('hide'); $('#loginPw').value=''; $('#loginMsg').textContent=''; await boot(); }catch(e){ $('#loginMsg').textContent=e.message; } }
 $('#loginBtn').onclick=doLogin; $('#loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
 $('#pwSave').onclick=async()=>{ const cur=$('#pwCur').value, nw=$('#pwNew').value.trim(); if(nw.length<6) return toast('6文字以上にしてください'); try{ busy(true); await api('setLoginPassword',{current:cur,pw:nw}); $('#pwStatus').textContent='変更しました。他の端末は次に開くとき新しいパスワードが必要です'; $('#pwCur').value=''; $('#pwNew').value=''; }catch(e){ $('#pwStatus').textContent='変更できません: '+e.message; } finally{ busy(false); } };
-$('#logoutBtn').onclick=()=>{ localStorage.removeItem('hc_login'); location.reload(); };
+$('#logoutBtn').onclick=()=>{ localStorage.removeItem('hc_login'); CKs('hc_login','0'); location.reload(); };
 $('#cfgLink').onclick=async()=>{ const c={url:$('#cfgUrl').value.trim(),token:$('#cfgToken').value}; if(!c.url) return toast('先にURLを入れてください'); const link=location.origin+location.pathname+'?s='+encCfg(c); /* LINEから開くと #以降が落ちることがあるので ?s= にする */ try{ await navigator.clipboard.writeText(link); $('#cfgStatus').textContent='設定リンクをコピーしました（LINEやメールで自分に送って、他の端末で開いてください）'; }catch(e){ prompt('このリンクをコピーしてください',link); } };
 $('#formsText').onchange=()=>{ D.forms=$('#formsText').value.split(/[,、，]/).map(s=>s.trim()).filter(Boolean); LSs('hc_forms',D.forms.join(',')); renderStaffSel(); };
 let editRes=[];
