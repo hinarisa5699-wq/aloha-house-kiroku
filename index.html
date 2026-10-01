@@ -147,6 +147,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   body.print-diary #diaryOut .n{font-size:10.5pt;padding:4px 0;border-top:1px solid #ccc} body.print-diary #diaryOut .n .m{font-size:9pt;color:#555}
 }
 @page diary{size:A4 portrait;margin:12mm}
+@page board{size:A4 portrait;margin:10mm}
+#listOut.board{page:board} .board table.board{width:100%;border-collapse:collapse;font-size:15pt} .board table.board th,.board table.board td{border:1.5px solid #333;padding:7px 8px;vertical-align:top;text-align:left} .board table.board th{background:#eee;font-size:12pt} .board table.board td.t{white-space:nowrap;font-weight:700;width:76px} .board table.board td.rm{white-space:nowrap;width:46px;text-align:center} .board table.board td.nm{white-space:nowrap;font-weight:700} .board table.board td.memo{width:30%} .board .memo-box{border:1.5px solid #333;height:48mm;margin-top:10px;padding:6px;font-size:12pt;color:#555} .board h2.bh{font-size:20pt;margin:0 0 8px} .board .sub{font-size:11pt;color:#444;margin:6px 0 0}
+@media print{.board table.board{font-size:14pt} .board table.board tr{page-break-inside:avoid}}
 </style>
 </head>
 <body>
@@ -226,7 +229,7 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
 <section class="panel" id="p-list">
   <div class="card">
     <div class="row noprint" style="margin-bottom:8px">
-      <select id="lMode"><option value="day">この日の全員</option><option value="month">利用者1人の1か月（記録）</option><option value="cal">利用者1人の月間予定表（カレンダー）</option><option value="week">利用者1人の週間予定表（この日を含む週）</option><option value="calall">全員の予定一覧（日×入居者）</option><option value="notes">この日の様子・特記</option><option value="info">入居者一覧（基本情報・関係先）</option></select>
+      <select id="lMode"><option value="day">この日の全員</option><option value="month">利用者1人の1か月（記録）</option><option value="cal">利用者1人の月間予定表（カレンダー）</option><option value="week">利用者1人の週間予定表（この日を含む週）</option><option value="calall">全員の予定一覧（日×入居者）</option><option value="notes">この日の様子・特記</option><option value="board">この日の予定（A4掲示用・ホワイトボード）</option><option value="info">入居者一覧（基本情報・関係先）</option></select>
       <select id="lRes" class="hide"></select>
       <button class="btn" id="printBtn" style="flex:none">印刷</button>
     </div>
@@ -379,9 +382,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=muopw1ht"></script>
-<script src="kiroku.js?v=muopw1ht"></script>
-<script src="app.js?v=muopw1ht"></script>
-<script src="base.js?v=muopw1ht"></script>
+<script src="parsers.js?v=muosjo5b"></script>
+<script src="kiroku.js?v=muosjo5b"></script>
+<script src="app.js?v=muosjo5b"></script>
+<script src="base.js?v=muosjo5b"></script>
 </body>
 </html>

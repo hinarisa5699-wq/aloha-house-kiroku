@@ -253,12 +253,25 @@ function calendarHtml(ym, evByDay, title, sub, legend){
 $('#lMode').onchange=()=>{ $('#lRes').classList.toggle('hide',!['month','cal','week'].includes($('#lMode').value)); renderList(); };
 $('#lRes').onchange=renderList; $('#printBtn').onclick=()=>window.print();
 async function renderList(){
-  const mode=$('#lMode').value; const out=$('#listOut');
+  const mode=$('#lMode').value; const out=$('#listOut'); out.classList.toggle('board',mode==='board');
   $('#lRes').innerHTML=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join('');
   if(mode==='day'){
     const cell=m=>{ if(!m) return '<td></td>'; if(m['主食']==='注文なし') return '<td class="skip">注文なし</td>'; if(m['主食']==='欠') return '<td class="skip">欠食</td>'; const cls=m['症状']?'sym':(+m['主食']<=5||+m['副食']<=5)?'low':''; return `<td class="${cls}">${m['主食']}/${m['副食']}${m['汁物']&&m['汁物']!=='なし'?'/'+m['汁物']:''}${m['服薬']==='済'?' 薬✓'+(m['服薬時刻']||''):m['服薬']==='未'?' <b style="color:#b3261e">薬未</b>':''}${m['水分']?'<br><small>'+m['水分']+'ml</small>':''}${m['症状']?'<br><small>'+esc(m['症状'])+'</small>':''}${m['備考']?'<br><small>'+esc(m['備考'])+'</small>':''}</td>`; };
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">この日の全員（食事・予定・記録）　${D.date.replace(/-/g,'/')}(${WD[new Date(D.date+'T00:00:00').getDay()]})</h2><table class="grid stk2"><tr><th>部屋</th><th>氏名</th><th>朝食<br>主/副</th><th>昼食<br>主/副</th><th>おやつ</th><th>夕食<br>主/副</th><th>予定</th><th>様子・特記</th><th>他部署の記録<br><span style="font-weight:400;font-size:10.5px"><span class="xt src-nurse" style="display:inline-block;padding:0 4px">訪看</span> <span class="xt src-helper" style="display:inline-block;padding:0 4px">訪介</span> <span class="xt src-day" style="display:inline-block;padding:0 4px">デイ</span> <span class="xt src-line" style="display:inline-block;padding:0 4px">LINE</span></span></th></tr>`+
       D.residents.map(r=>`<tr><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td>${['朝食','昼食','おやつ','夕食'].map(m=>cell(mealOf(r.id,m))).join('')}<td class="l" style="white-space:normal;text-align:left">${schOf(r.id).map(s=>esc(fmtSch(s))).join('<br>')}</td><td style="text-align:left">${D.day.notes.filter(n=>n['利用者ID']===r.id).map(n=>`${n['時刻']||''} ${esc(n['種別'])}:${esc(n['内容'])}`).join('<br>')}</td><td style="text-align:left">${extOf(r.id).map(extCell).join('')}</td></tr>`).join('')+'</table><div class="legend">数字は主食/副食の摂取割合（10=全量）。橙=半分以下、赤=症状あり。</div>'+houseHtml();
+  } else if(mode==='board'){
+    // ホワイトボード掲示用：この日の全員の予定をA4縦1枚に大きく。手書き用の備考欄とメモ欄付き
+    const ids=new Set(D.residents.map(r=>r.id)); const nm=Object.fromEntries(D.residents.map(r=>[r.id,r])); nm['']={id:'','部屋':'—','氏名':'アロハハウス'};
+    const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
+    const list=(D.day.schedules||[]).filter(s=>ids.has(s['利用者ID'])||s['利用者ID']==='').sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始']))||String(nm[a['利用者ID']]['部屋']).localeCompare(String(nm[b['利用者ID']]['部屋'])));
+    const body=s=>{ const c=s['内容']||''; return (c.startsWith(s['種別'])||c.includes(s['種別']))?c:(s['種別']+(c?' '+c:'')); };
+    const d=new Date(D.date+'T00:00:00'); const has=new Set(list.map(s=>s['利用者ID'])); const none=D.residents.filter(r=>!has.has(r.id));
+    const house=houseExt();
+    out.innerHTML=`<h2 class="bh">アロハハウス　本日の予定　${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WD[d.getDay()]}）</h2><table class="board"><tr><th>時間</th><th>部屋</th><th>氏名</th><th>予定</th><th>担当</th><th>備考</th></tr>`+
+      (list.length?list.map(s=>{ const r=nm[s['利用者ID']]; return `<tr><td class="t">${esc(s['開始']||'')}${s['終了']?'<br><span style="font-weight:400;font-size:11pt">〜'+esc(s['終了'])+'</span>':''}</td><td class="rm">${esc(r['部屋'])}</td><td class="nm">${esc(r['氏名'])}</td><td>${esc(body(s))}</td><td>${esc(s['担当']||'')}</td><td class="memo"></td></tr>`; }).join(''):'<tr><td colspan="6">予定なし</td></tr>')+'</table>'+
+      (none.length?`<p class="sub">予定なし：${none.map(r=>esc(r['部屋'])+' '+esc(r['氏名'])).join('　')}</p>`:'')+
+      (house.length?`<p class="sub">ハウス全体：${house.map(e=>(e['時刻']?e['時刻']+' ':'')+esc(e['内容'])).join('　／　')}</p>`:'')+
+      '<div class="memo-box">連絡・メモ</div>';
   } else if(mode==='info'){
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">入居者一覧　${new Date().toLocaleDateString('ja-JP')}現在</h2><table class="grid"><tr><th>部屋</th><th>氏名</th><th>ふりがな</th><th>入居日</th><th>食事形態</th><th>既往歴</th><th>関係事業所・担当者・連絡先</th></tr>`+
       D.residents.map(r=>`<tr><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td class="l">${esc(r['ふりがな'])}</td><td>${r['入居日']?esc(r['入居日'].replace(/-/g,'/')):''}</td><td>${esc(r['食事形態'])}</td><td style="text-align:left">${esc(r['既往歴'])}</td><td style="text-align:left">${contactsOf(r.id).map(c=>`${esc(c['種別'])}：${esc(c['事業所'])}${c['担当者']?' '+esc(c['担当者']):''}${c['連絡先']?' '+esc(c['連絡先']):''}`).join('<br>')}</td></tr>`).join('')+'</table>';
