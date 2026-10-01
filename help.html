@@ -179,6 +179,18 @@ a{color:#1d6fb8}
 </table>
 <p>リンク・パスワード・入居者の追加削除は管理者が行います。</p>
 </div>
+<h3 style="margin:14px 0 6px;font-size:15px">管理者用：カイポケが開かない（エラーページになる）とき</h3>
+<div class="card">
+<p>カイポケは、再認証が途中で止まるとどのページを開いても「error.html」に飛ばされることがあります。そのときは<b>カイポケのサイトデータだけ</b>を消してからログインし直します。Chrome全体のキャッシュ削除をすると、このアプリの接続設定・ログインやGitHubのログインも一緒に消えてしまうので、全体削除はしないでください。</p>
+<ol>
+<li>Chromeのアドレス欄に <code>chrome://settings/content/all</code> と入れて開く</li>
+<li>検索欄に <code>kaipoke</code> と入れる</li>
+<li>出てきた <b>r.kaipoke.biz</b>（と kaipoke.biz）の右のゴミ箱マークを押して削除</li>
+<li>カイポケ（r.kaipoke.biz）を開き直してログイン</li>
+<li>拡張機能の同期画面で、止まっていた取り込み（デイ予定など）をもう一度押す</li>
+</ol>
+<p class="muted">これでアプリ側（github.io）の設定は消えません。もし全体削除をしてしまった場合は、PC用リンク（?s=…付き）を開き直せば接続先は戻り、パスワードだけ入れ直しになります。</p>
+</div>
 <p class="top"><a href="./">← アプリに戻る</a></p>
 </main>
 </body>
