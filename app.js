@@ -15,7 +15,7 @@ const CK=k=>{try{const m=document.cookie.match(new RegExp('(?:^|; )'+k+'=([^;]*)
 const encCfg=c=>btoa(unescape(encodeURIComponent(JSON.stringify({u:c.url,t:c.token})))).replace(/=+$/,''), decCfg=s=>{try{const o=JSON.parse(decodeURIComponent(escape(atob(s))));return o&&o.u?{url:o.u,token:o.t||''}:null}catch(e){return null}};
 let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')||''};
 // スマホ・タブレット用リンク（?s=…&m=1）で開いた端末は「設定」タブを出さない（接続先はリンクに入っているので手で触る必要がない）
-(function(){ if(/[?&]m=1(&|$|#)/.test(location.search)) LSs('hc_mode','m'); if(LS('hc_mode')==='m') document.body.classList.add('fixedcfg'); })();
+(function(){ if(/[?&]m=1(&|$|#)/.test(location.search)) LSs('hc_mode','m'); if(/[?&]m=0(&|$|#)/.test(location.search)){ try{ localStorage.removeItem('hc_mode'); }catch(e){} } /* m=0 でスマホ用の設定（設定タブ非表示）を解除 */ if(LS('hc_mode')==='m') document.body.classList.add('fixedcfg'); })();
 (function(){ const m=(location.search+location.hash).match(/[?#&]s=([^&#]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; } /* ?s= はURLに残す（ブラウザの保存データが消えても、リロードやブックマークで接続先が復元できるように） */ if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
@@ -357,7 +357,7 @@ $('#sAdd').onclick=async()=>{
   finally{ busy(false); btn.disabled=false; btn.textContent='登録'; }
 };
 // 拡張機能の同期画面を開くボタン（IDはこの端末に保存。既定は事務所PCのID）
-(function(){ const DEF='hgcafflnkikfhkcanolicacgkehacldd'; const inp=$('#extId'), a=$('#extOpen'); if(!inp||!a) return; inp.value=LS('hc_ext_id')||DEF; const upd=()=>{ const id=inp.value.trim()||DEF; a.href='chrome-extension://'+id+'/sync.html'; }; upd(); inp.onchange=()=>{ LSs('hc_ext_id',inp.value.trim()); upd(); }; a.onclick=e=>{ upd(); if(!/Chrome/.test(navigator.userAgent)||/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)){ e.preventDefault(); toast('この画面はパソコンのChrome（拡張機能を入れたもの）で開いてください'); return; } const id=inp.value.trim()||DEF; if(window.chrome&&chrome.runtime&&chrome.runtime.sendMessage){ e.preventDefault(); try{ chrome.runtime.sendMessage(id,{type:'openSync'},r=>{ if(chrome.runtime.lastError||!r||!r.ok){ window.open(a.href,'_blank'); } }); }catch(err){ window.open(a.href,'_blank'); } } }; })();
+(function(){ const DEF='dnamjejphndliflbofjgekcnfclnhkcd'; const inp=$('#extId'), a=$('#extOpen'); if(!inp||!a) return; inp.value=LS('hc_ext_id')||DEF; const upd=()=>{ const id=inp.value.trim()||DEF; a.href='chrome-extension://'+id+'/sync.html'; }; upd(); inp.onchange=()=>{ LSs('hc_ext_id',inp.value.trim()); upd(); }; a.onclick=e=>{ upd(); if(!/Chrome/.test(navigator.userAgent)||/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)){ e.preventDefault(); toast('この画面はパソコンのChrome（拡張機能を入れたもの）で開いてください'); return; } const id=inp.value.trim()||DEF; if(window.chrome&&chrome.runtime&&chrome.runtime.sendMessage){ e.preventDefault(); try{ chrome.runtime.sendMessage(id,{type:'openSync'},r=>{ if(chrome.runtime.lastError||!r||!r.ok){ window.open(a.href,'_blank'); } }); }catch(err){ window.open(a.href,'_blank'); } } }; })();
 $('#sReload').onclick=loadSchList; $('#sListRes').onchange=loadSchList;
 async function loadSchList(){
   const out=$('#sList'); out.innerHTML='<div class="muted">読み込み中…</div>';
