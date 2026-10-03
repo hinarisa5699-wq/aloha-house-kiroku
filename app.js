@@ -113,7 +113,7 @@ function renderTodaySch(){
 }
 // 取り込みの実施記録（介護記録PDF・LINE）。今日まだなら「今日の予定/食事」の上に注意を出す
 function importLast(){ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']==='import_last'); try{ return r?JSON.parse(r['値'])||{}:{}; }catch(e){ return {}; } }
-async function stampImport(kinds){ const v=importLast(); const now=new Date(); const t=`${todayStr()} ${pad(now.getHours())}:${pad(now.getMinutes())}`; kinds.forEach(k=>v[k]=t); try{ await api('saveProfile',{residentId:'',key:'import_last',value:v}); }catch(e){} D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===''&&p['キー']==='import_last')); D.profiles.push({'利用者ID':'','キー':'import_last','値':JSON.stringify(v)}); renderImportWarn(); }
+async function stampImport(kinds){ let v=importLast(); const now=new Date(); const t=`${todayStr()} ${pad(now.getHours())}:${pad(now.getMinutes())}`; kinds.forEach(k=>v[k]=t); try{ const r=await api('stampImport',{kinds}); if(r){ try{ v=JSON.parse(r)||v; }catch(e){} } }catch(e){} D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===''&&p['キー']==='import_last')); D.profiles.push({'利用者ID':'','キー':'import_last','値':JSON.stringify(v)}); renderImportWarn(); } // サーバー側で合流させる（他の種類の印を古い値で上書きしない）
 function renderImportWarn(){ const el=$('#impWarn'); if(!el) return; const v=importLast(); const need=[['介護記録','介護記録（毎日の記録・業務日誌）'],['LINE','LINEトーク']];
   // 最後に取り込んだ日時を出す。前日より前（＝昨日も今日も取り込んでいない）のものだけ赤で警告
   const y=new Date(); y.setDate(y.getDate()-1); const yStr=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`;
