@@ -114,9 +114,14 @@ function renderTodaySch(){
 // 取り込みの実施記録（介護記録PDF・LINE）。今日まだなら「今日の予定/食事」の上に注意を出す
 function importLast(){ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']==='import_last'); try{ return r?JSON.parse(r['値'])||{}:{}; }catch(e){ return {}; } }
 async function stampImport(kinds){ const v=importLast(); const now=new Date(); const t=`${todayStr()} ${pad(now.getHours())}:${pad(now.getMinutes())}`; kinds.forEach(k=>v[k]=t); try{ await api('saveProfile',{residentId:'',key:'import_last',value:v}); }catch(e){} D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===''&&p['キー']==='import_last')); D.profiles.push({'利用者ID':'','キー':'import_last','値':JSON.stringify(v)}); renderImportWarn(); }
-function renderImportWarn(){ const el=$('#impWarn'); if(!el) return; const v=importLast(); const need=[['介護記録','介護記録（毎日の記録・業務日誌）'],['LINE','LINEトーク']]; const miss=need.filter(([k])=>!(v[k]||'').startsWith(todayStr())); const done=need.filter(([k])=>(v[k]||'').startsWith(todayStr()));
-  if(!miss.length){ el.className='card'; el.style.cssText='padding:6px 12px;background:#eefaf0;border-color:#b7e1c1;font-size:12.5px'; el.innerHTML=`✓ 今日の取り込み済み：${done.map(([k,l])=>l+' '+esc(v[k].slice(11))).join('　')}`; return; }
-  el.className='card'; el.style.cssText='padding:8px 12px;background:#fff3f3;border-color:#f3b4b4;color:#b3261e;font-weight:700'; el.innerHTML=`⚠ 今日まだ取り込んでいません：${miss.map(([k,l])=>l).join('、')}<div class="muted" style="font-weight:400;color:#7a1f1a;font-size:12px">${done.length?'取り込み済み：'+done.map(([k,l])=>l+' '+esc(v[k].slice(11))).join('　')+'　':''}${miss.some(([k])=>k==='LINE')?'LINEトークはパソコンの「設定」タブから取り込んでください（毎日必須）。':''}${miss.some(([k])=>k==='介護記録')?'介護記録はパソコンのChromeが起動していれば自動で取り込まれます（すぐ入れたいときは拡張機能の「デイ：業務日誌＋介護記録」）。':''}</div>`; }
+function renderImportWarn(){ const el=$('#impWarn'); if(!el) return; const v=importLast(); const need=[['介護記録','介護記録（毎日の記録・業務日誌）'],['LINE','LINEトーク']];
+  // 最後に取り込んだ日時を出す。前日より前（＝昨日も今日も取り込んでいない）のものだけ赤で警告
+  const y=new Date(); y.setDate(y.getDate()-1); const yStr=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`;
+  const fmt=t=>{ if(!t) return '未取込'; const m=String(t).match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}:\d{2}))?/); if(!m) return esc(t); const d=`${m[1]}-${m[2]}-${m[3]}`; return (d===todayStr()?'今日':d===yStr?'昨日':`${+m[2]}/${+m[3]}`)+(m[4]?' '+m[4]:''); };
+  const old=need.filter(([k])=>!v[k]||String(v[k]).slice(0,10)<yStr);
+  const line=need.map(([k,l])=>`${l}：${fmt(v[k])}`).join('　');
+  if(!old.length){ el.className='card'; el.style.cssText='padding:6px 12px;background:#eefaf0;border-color:#b7e1c1;font-size:12.5px'; el.innerHTML=`最終取り込み　${line}`; return; }
+  el.className='card'; el.style.cssText='padding:8px 12px;background:#fff3f3;border-color:#f3b4b4;color:#b3261e;font-weight:700'; el.innerHTML=`⚠ 2日以上取り込まれていません：${old.map(([k,l])=>l).join('、')}<div class="muted" style="font-weight:400;color:#7a1f1a;font-size:12px">最終取り込み　${line}<br>${old.some(([k])=>k==='LINE')?'LINEトークはパソコンの「設定」タブから取り込んでください。':''}${old.some(([k])=>k==='介護記録')?'介護記録は毎日20時にパソコンのChromeが自動で取り込みます（Chromeが起動していないと動きません。すぐ入れたいときは拡張機能の「デイ：業務日誌＋介護記録」）。':''}</div>`; }
 function renderToday(){
   renderImportWarn();
   $('#ttl').textContent=`入居者記録 ${dateLabel(D.date)}`;
