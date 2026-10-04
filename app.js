@@ -64,15 +64,21 @@ async function boot(){
   }
   // 前回の内容をまず表示（開き直したときに「読み込み中」で待たせない）。そのあと裏で最新に更新
   const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); };
-  try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=JSON.parse(LS('hc_cache_day')||'null'); if(cb&&cb.residents){ applyBoot(cb); if(cd&&cd.date===D.date&&cd.data){ D.day=cd.data; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
+  try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=dayCacheGet(D.date); if(cb&&cb.residents){ applyBoot(cb); if(cd){ D.day=cd; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
   const slow=setTimeout(()=>{ if(/読み込み中/.test($('#todayList').textContent)) $('#todayList').innerHTML='<div class="card">読み込みに時間がかかっています。通信状況を確認して、少し待つか<button class="btn" type="button" onclick="location.reload()">再読み込み</button>してください。</div>'; },15000);
-  try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); D.day=d; LSs('hc_cache_day',JSON.stringify({date:D.date,data:d})); renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
+  try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); D.day=d; dayCachePut(D.date,d); renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
   catch(e){ $('#todayList').innerHTML=`<div class="card">接続できません：${e.message}<br><span class="muted">設定を確認してください</span></div>`; }
   finally{ busy(false); }
 }
+// 日ごとの内容を端末に控えておく（日付を切り替えたとき、まず前回の内容を出してから裏で最新に更新する）
+const dayCacheGet=d=>{ try{ const m=JSON.parse(LS('hc_cache_days')||'{}'); return m[d]&&m[d].data||null; }catch(e){ return null; } };
+const dayCachePut=(d,data)=>{ try{ let m=JSON.parse(LS('hc_cache_days')||'{}'); m[d]={t:Date.now(),data}; const ks=Object.keys(m).sort((x,y)=>m[y].t-m[x].t); if(ks.length>45) ks.slice(45).forEach(k=>delete m[k]); LSs('hc_cache_days',JSON.stringify(m)); }catch(e){} LSs('hc_cache_day',JSON.stringify({date:d,data})); };
+let _loadSeq=0;
 async function loadDay(){
-  try{ busy(true); const d=await api('day',{date:D.date}); D.day=d; LSs('hc_cache_day',JSON.stringify({date:D.date,data:d})); renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); }
-  catch(e){ toast('読み込み失敗: '+e.message); } finally{ busy(false); }
+  const seq=++_loadSeq; const want=D.date;
+  const c=dayCacheGet(want); if(c){ D.day=c; renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); $('#ttl').textContent+='（更新中…）'; }
+  try{ busy(true); const d=await api('day',{date:want}); if(seq!==_loadSeq||want!==D.date) return; D.day=d; dayCachePut(want,d); renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); }
+  catch(e){ if(seq===_loadSeq) toast('読み込み失敗: '+e.message); } finally{ if(seq===_loadSeq) busy(false); }
 }
 const mealOf=(rid,meal)=>D.day.meals.find(m=>m['利用者ID']===rid&&m['食事']===meal);
 const extOf=rid=>(D.day.ext||[]).filter(e=>e['利用者ID']===rid||(rid&&e['利用者ID']===''&&false)).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''));
@@ -121,8 +127,8 @@ function renderImportWarn(){ const el=$('#impWarn'); if(!el) return; const v=imp
   const old=need.filter(([k])=>!v[k]||String(v[k]).slice(0,10)<yStr);
   const line=need.map(([k,l])=>`${l}：${fmt(v[k])}`).join('　');
   if(!old.length){ el.className='card'; el.style.cssText='padding:6px 12px;background:#eefaf0;border-color:#b7e1c1;font-size:12.5px'; el.innerHTML=`最終取り込み　${line}`; return; }
-  el.className='card'; el.style.cssText='padding:8px 12px;background:#fff3f3;border-color:#f3b4b4;color:#b3261e;font-weight:700'; el.innerHTML=`⚠ 2日以上取り込まれていません：${old.map(([k,l])=>l).join('、')}<div class="muted" style="font-weight:400;color:#7a1f1a;font-size:12px">最終取り込み　${line}<br>${old.some(([k])=>k==='LINE')?'LINEトークはパソコンの「設定」タブから取り込んでください。':''}${old.some(([k])=>k==='介護記録')?'介護記録は毎日20時にパソコンのChromeが自動で取り込みます（Chromeが起動していないと動きません。すぐ入れたいときは拡張機能の「デイ：業務日誌＋介護記録」）。':''}</div>`; }
-function renderToday(){
+  el.className='card'; el.style.cssText='padding:8px 12px;background:#fff3f3;border-color:#f3b4b4;color:#b3261e;font-weight:700'; el.innerHTML=`⚠ 2日以上取り込まれていません：${old.map(([k,l])=>l).join('、')}<div class="muted" style="font-weight:400;color:#7a1f1a;font-size:12px">最終取り込み　${line}<br>${old.some(([k])=>k==='LINE')?'LINEトークはパソコンの「設定」タブから取り込んでください。':''}${old.some(([k])=>k==='介護記録')?'介護記録は毎日22時にパソコンのChromeが自動で取り込みます（Chromeが起動していないと動きません。すぐ入れたいときは拡張機能の「デイ：業務日誌＋介護記録」）。':''}</div>`; }
+function renderToday(){ try{ if(D.day&&D.day.meals) dayCachePut(D.date,D.day); }catch(e){} // 保存・削除のあとも端末の控えを最新に
   renderImportWarn();
   $('#ttl').textContent=`入居者記録 ${dateLabel(D.date)}`;
   if(!D.residents.length){ $('#todayList').innerHTML='<div class="card">入居者が登録されていません。「設定」から登録してください。</div>'; return; }
@@ -259,7 +265,7 @@ $('#lMode').onchange=()=>{ $('#lRes').classList.toggle('hide',!['month','cal','w
 $('#lRes').onchange=renderList; $('#printBtn').onclick=()=>window.print();
 async function renderList(){
   const mode=$('#lMode').value; const out=$('#listOut'); out.classList.toggle('board',mode==='board');
-  $('#lRes').innerHTML=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join('');
+  { const sel=$('#lRes'); const cur=sel.value; sel.innerHTML=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); if(cur&&D.residents.some(r=>r.id===cur)) sel.value=cur; } // 選び直しても先頭の人に戻らないように
   if(mode==='day'){
     const cell=m=>{ if(!m) return '<td></td>'; if(m['主食']==='注文なし') return '<td class="skip">注文なし</td>'; if(m['主食']==='欠') return '<td class="skip">欠食</td>'; const cls=m['症状']?'sym':(+m['主食']<=5||+m['副食']<=5)?'low':''; return `<td class="${cls}">${m['主食']}/${m['副食']}${m['汁物']&&m['汁物']!=='なし'?'/'+m['汁物']:''}${m['服薬']==='済'?' 薬✓'+(m['服薬時刻']||''):m['服薬']==='未'?' <b style="color:#b3261e">薬未</b>':''}${m['水分']?'<br><small>'+m['水分']+'ml</small>':''}${m['症状']?'<br><small>'+esc(m['症状'])+'</small>':''}${m['備考']?'<br><small>'+esc(m['備考'])+'</small>':''}</td>`; };
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">この日の全員（食事・予定・記録）　${D.date.replace(/-/g,'/')}(${WD[new Date(D.date+'T00:00:00').getDay()]})</h2><table class="grid stk2"><tr><th>部屋</th><th>氏名</th><th>朝食<br>主/副</th><th>昼食<br>主/副</th><th>おやつ</th><th>夕食<br>主/副</th><th>予定</th><th>様子・特記</th><th>他部署の記録<br><span style="font-weight:400;font-size:10.5px"><span class="xt src-nurse" style="display:inline-block;padding:0 4px">訪看</span> <span class="xt src-helper" style="display:inline-block;padding:0 4px">訪介</span> <span class="xt src-day" style="display:inline-block;padding:0 4px">デイ</span> <span class="xt src-line" style="display:inline-block;padding:0 4px">LINE</span></span></th></tr>`+
