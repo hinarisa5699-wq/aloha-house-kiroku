@@ -368,7 +368,17 @@ $('#sAdd').onclick=async()=>{
   finally{ busy(false); btn.disabled=false; btn.textContent='登録'; }
 };
 // 拡張機能の同期画面を開くボタン（IDはこの端末に保存。既定は事務所PCのID）
-(function(){ const DEF='dnamjejphndliflbofjgekcnfclnhkcd'; const inp=$('#extId'), a=$('#extOpen'); if(!inp||!a) return; inp.value=LS('hc_ext_id')||DEF; const upd=()=>{ const id=inp.value.trim()||DEF; a.href='chrome-extension://'+id+'/sync.html'; }; upd(); inp.onchange=()=>{ LSs('hc_ext_id',inp.value.trim()); upd(); }; a.onclick=e=>{ upd(); if(!/Chrome/.test(navigator.userAgent)||/Mobile|Android|iPhone|iPad/.test(navigator.userAgent)){ e.preventDefault(); toast('この画面はパソコンのChrome（拡張機能を入れたもの）で開いてください'); return; } const id=inp.value.trim()||DEF; if(window.chrome&&chrome.runtime&&chrome.runtime.sendMessage){ e.preventDefault(); try{ chrome.runtime.sendMessage(id,{type:'openSync'},r=>{ if(chrome.runtime.lastError||!r||!r.ok){ window.open(a.href,'_blank'); } }); }catch(err){ window.open(a.href,'_blank'); } } }; })();
+(function(){ const DEF='dnamjejphndliflbofjgekcnfclnhkcd'; const inp=$('#extId'), a=$('#extOpen'), st=$('#extStat'); if(!inp||!a) return;
+  // 拡張機能（1.6.1以降）はこのページを開いたときに自分のIDを localStorage(hc_ext_id) に書き込むので、それを最優先で使う
+  const curId=()=>(LS('hc_ext_id')||inp.value.trim()||DEF).trim();
+  inp.value=LS('hc_ext_id')||DEF; const upd=()=>{ a.href='chrome-extension://'+curId()+'/sync.html'; }; upd();
+  inp.onchange=()=>{ LSs('hc_ext_id',inp.value.trim()); upd(); };
+  const isPcChrome=/Chrome/.test(navigator.userAgent)&&!/Mobile|Android|iPhone|iPad/.test(navigator.userAgent);
+  // 接続確認（拡張機能が入っていて動いているか）
+  const ping=()=>new Promise(res=>{ if(!isPcChrome||!(window.chrome&&chrome.runtime&&chrome.runtime.sendMessage)) return res(null); try{ chrome.runtime.sendMessage(curId(),{type:'ping'},r=>{ if(chrome.runtime.lastError||!r||!r.ok) res(false); else res(r); }); }catch(e){ res(false); } });
+  const showStat=async()=>{ if(!st||!isPcChrome) return; const r=await ping(); st.textContent=r?`拡張機能 v${r.version||''} 接続OK`:'拡張機能が見つかりません（chrome://extensions で「アロハハウス カイポケ記録同期」が有効か確認。入れ直したときはこのページを一度再読み込み）'; st.style.color=r?'#2e7d32':'#b3261e'; };
+  showStat();
+  a.onclick=e=>{ upd(); if(!isPcChrome){ e.preventDefault(); toast('この画面はパソコンのChrome（拡張機能を入れたもの）で開いてください'); return; } if(window.chrome&&chrome.runtime&&chrome.runtime.sendMessage){ e.preventDefault(); try{ chrome.runtime.sendMessage(curId(),{type:'openSync'},r=>{ if(chrome.runtime.lastError||!r||!r.ok){ showStat(); const w=window.open(a.href,'_blank'); if(!w) toast('同期画面を開けませんでした。拡張機能が有効か確認してください'); } }); }catch(err){ window.open(a.href,'_blank'); } } }; })();
 $('#sReload').onclick=loadSchList; $('#sListRes').onchange=loadSchList;
 async function loadSchList(){
   const out=$('#sList'); out.innerHTML='<div class="muted">読み込み中…</div>';
