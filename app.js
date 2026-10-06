@@ -63,7 +63,7 @@ async function boot(){
     return;
   }
   // 前回の内容をまず表示（開き直したときに「読み込み中」で待たせない）。そのあと裏で最新に更新
-  const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); };
+  const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); const lr=$('#lineRes'); if(lr){ const cur=lr.value; lr.innerHTML='<option value="">（職員の全体グループ：名前で判定）</option>'+D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); lr.value=cur; } };
   try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=dayCacheGet(D.date); if(cb&&cb.residents){ applyBoot(cb); if(cd){ D.day=cd; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
   const slow=setTimeout(()=>{ if(/読み込み中/.test($('#todayList').textContent)) $('#todayList').innerHTML='<div class="card">読み込みに時間がかかっています。通信状況を確認して、少し待つか<button class="btn" type="button" onclick="location.reload()">再読み込み</button>してください。</div>'; },15000);
   try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); D.day=d; dayCachePut(D.date,d); renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
@@ -446,34 +446,50 @@ async function importLineFile(f, st, ym){
   try{ busy(true); step('トーク履歴を読み込み中'); const text=new TextDecoder('utf-8').decode(await f.arrayBuffer());
     const parsed=parseLine(text); const all=parsed.filter(g=>g.y===y&&g.m===m);
     const names=D.residents.map(r=>r['氏名']); const sns=names.map(surnameOf).filter(s=>s.length>=2);
-    // 前回どこまで読んだか（月ごとのカーソル）。最後に読んだ投稿を探して、その続きだけ対象にする
     const gProf=k=>{ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']===k); if(!r) return null; try{ return JSON.parse(r['値']); }catch(e){ return null; } }; const sProf=async(k,v)=>{ await api('saveProfile',{residentId:'',key:k,value:v}); D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===''&&p['キー']===k)); D.profiles.push({'利用者ID':'','キー':k,'値':JSON.stringify(v)}); };
-    const redo=$('#lineRedo')&&$('#lineRedo').checked; const curKey='line_cursor:'+ym; const cur=redo?null:gProf(curKey);
-    const sig=g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''} ${(g.sender||'')}|${String(g.text).slice(0,120)}`;
-    let start=0;
-    if(cur&&cur.last){ let idx=-1; for(let k=Math.min(cur.n||all.length,all.length)-1;k>=0;k--){ if(sig(all[k])===cur.last){ idx=k; break; } } if(idx<0) idx=all.findIndex(g=>sig(g)===cur.last); if(idx>=0) start=idx+1; else if(cur.lastAt){ start=all.findIndex(g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''}`>cur.lastAt); if(start<0) start=all.length; } }
-    const fresh=all.slice(start);
-    const picked=fresh.filter(g=>{ const t=g.text; if(/^(画像|動画|スタンプ|\[投票|\[投票終了|.*をグループに追加しました。?$|メッセージの送信を取り消しました)/.test(t)) return false; if(/https?:\/\//.test(t)&&t.length<80) return false; return sns.some(s=>t.indexOf(s)>=0) || RE_HOUSE_KW.test(t) || /オンコール/.test(g.sender||''); })
-      .map(g=>({date:`${g.y}-${pad(g.m)}-${pad(g.d)}`,time:g.time,sender:g.sender,text:g.text.slice(0,600)}));
     if(!all.length){ const months=[...new Set(parsed.map(g=>`${g.y}-${pad(g.m)}`))].sort(); throw new Error(`${ym}の投稿がありません（このファイルにある月：${months.slice(-6).join('、')}）`); }
+    // トークルームの識別：先頭の「[LINE] ○○のトーク履歴」があればその名前、なければ投稿の多い送信者の顔ぶれで見分ける（全体グループと○○様グループを別々に数えるため）
+    const hm=text.match(/\[LINE\]\s*(.+?)(?:との|の)トーク履歴/); let room;
+    if(hm) room=hm[1].trim().slice(0,40); else { const c={}; parsed.forEach(g=>{ if(g.sender&&!/をグループに追加しました|送信を取り消しました/.test(g.text)) c[g.sender]=(c[g.sender]||0)+1; }); const top=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]).sort(); let h=0; for(const ch of top.join('|')){ h=(h*31+ch.charCodeAt(0))>>>0; } room='r'+h.toString(36); }
+    // ご家族グループ（特定の入居者の関係者とのトーク）：選んだ入居者を覚えて、次回から自動で同じ方にする
+    const lrSel=$('#lineRes'); const roomMap=gProf('line_room')||{}; let focusId=(lrSel&&lrSel.value)||roomMap[room]||''; if(lrSel&&!lrSel.value&&focusId){ lrSel.value=focusId; if(lrSel.value!==focusId) focusId=''; }
+    const focusRes=focusId?D.residents.find(r=>r.id===focusId):null; const focus=focusRes?focusRes['氏名']:'';
+    if(lrSel&&lrSel.value&&roomMap[room]!==lrSel.value){ roomMap[room]=lrSel.value; await sProf('line_room',roomMap); } else if(lrSel&&!lrSel.value&&roomMap[room]&&!focusId){ delete roomMap[room]; await sProf('line_room',roomMap); }
+    // 前回どこまで読んだか（月×トークルームごとのカーソル）。最後に読んだ投稿を探して、その続きだけ対象にする
+    const sig=g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''} ${(g.sender||'')}|${String(g.text).slice(0,120)}`;
+    const redo=$('#lineRedo')&&$('#lineRedo').checked; const curKey='line_cursor:'+ym+':'+room; let cur=redo?null:gProf(curKey);
+    const findIdx=c=>{ let idx=-1; for(let k=Math.min(c.n||all.length,all.length)-1;k>=0;k--){ if(sig(all[k])===c.last){ idx=k; break; } } if(idx<0) idx=all.findIndex(g=>sig(g)===c.last); return idx; };
+    // 旧版（ルーム別になる前）のカーソルは、その「最後に読んだ投稿」がこのファイルにあるときだけ引き継ぐ（別のグループのカーソルで読み飛ばさないように）
+    let legacy=false; if(!cur&&!redo){ const old=gProf('line_cursor:'+ym); if(old&&old.last&&findIdx(old)>=0){ cur=old; legacy=true; } }
+    let start=0;
+    if(cur&&cur.last){ const idx=findIdx(cur); if(idx>=0) start=idx+1; else if(cur.lastAt){ start=all.findIndex(g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''}`>cur.lastAt); if(start<0) start=all.length; } }
+    // このルームのカーソルがなく、旧版で取り込んだLINE抽出がこの月にあるときは、その最終日以降の投稿から読む（前の分を二重に入れないため）
+    if(!cur&&!redo){ try{ const mo=await api('month',{ym}); const leg=(mo.ext||[]).filter(r=>r['取込キー']===ym+'|LINE').map(r=>r['日付']).sort(); if(leg.length){ const maxD=leg[leg.length-1]; const k=all.findIndex(g=>`${g.y}-${pad(g.m)}-${pad(g.d)}`>=maxD); start=k<0?all.length:k; } }catch(e){} }
+    const fresh=all.slice(start);
+    const isSys=t=>/^(画像|動画|スタンプ|\[投票|\[投票終了|.*をグループに追加しました。?$|.*がグループのプロフィール画像を変更しました。?$|メッセージの送信を取り消しました|\(emotional\))/.test(t)||(/https?:\/\//.test(t)&&t.length<80);
+    const picked=fresh.filter(g=>{ const t=g.text; if(isSys(t)) return false; if(focus) return true; return sns.some(s=>t.indexOf(s)>=0) || RE_HOUSE_KW.test(t) || /オンコール/.test(g.sender||''); })
+      .map(g=>({date:`${g.y}-${pad(g.m)}-${pad(g.d)}`,time:g.time,sender:g.sender,text:g.text.slice(0,600)}));
+    const lastOf=g=>`${g.y}/${g.m}/${g.d} ${g.time||''}`;
     const saveCursor=async()=>{ const last=all[all.length-1]; await sProf(curKey,{n:all.length,last:sig(last),lastAt:`${last.y}-${pad(last.m)}-${pad(last.d)} ${last.time||''}`,at:new Date().toISOString()}); };
-    if(!fresh.length){ curStep=''; st.textContent=`前回（${all.length}通目まで）以降の新しい投稿はありません`; return; }
-    if(!picked.length){ await saveCursor(); curStep=''; st.textContent=`新しい投稿${fresh.length}通に入居者に関するものはありませんでした（次回はこの続きから読みます）`; return; }
-    const msg=start>0?`${ym}のLINE投稿 新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${ym}のLINE投稿 ${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にある${ym}のLINE抽出は置き換えます）`;
+    const roomLabel=focus?`${focus}のご家族グループ`:(hm?room:'このトークルーム');
+    if(!fresh.length){ if(legacy) await saveCursor(); curStep=''; st.textContent=`${roomLabel}：前回（${lastOf(all[all.length-1])}の投稿まで）以降の新しい投稿はこのファイルにありません。LINEからトーク履歴を書き出し直してからお試しください`; return; }
+    if(!picked.length){ await saveCursor(); curStep=''; st.textContent=`${roomLabel}：新しい投稿${fresh.length}通（〜${lastOf(all[all.length-1])}）に入居者に関するものはありませんでした（次回はこの続きから読みます）`+(focus?'':'。特定の入居者のご家族グループなら、右の「対象の入居者」を選んでから入れ直してください'); return; }
+    const impKey=ym+'|LINE|'+room; const extraKeys=[]; // 取込キーはルーム別。旧版のキー（ym|LINE）の分は消さない（他のルームの分が混ざっているため）
+    const msg=start>0?`${roomLabel}：${ym}の新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${roomLabel}：${ym}の投稿${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にあるこのグループの${ym}のLINE抽出は置き換えます）`;
     if(!confirm(msg)) { curStep=''; st.textContent='中止しました'; return; }
     const CH=60; let total=0, totalDiary=0, totalSch=0, totalMeals=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
     const nchunk=Math.ceil(picked.length/CH);
     for(let i=0;i<picked.length;i+=CH){ const ci=Math.floor(i/CH)+1; const pre=nchunk>1?`（${ci}/${nchunk}回目）`:'';
       step(`AIが投稿を整理中 ${Math.min(i+CH,picked.length)}/${picked.length}通${pre}…30秒〜1分ほどかかります`);
-      const res=await api('extractLine',{residents:names,messages:picked.slice(i,i+CH)});
+      const res=await api('extractLine',{residents:names,messages:picked.slice(i,i+CH),focus});
       step(`記録を保存中${pre}`);
-      const rows=res.items.map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.content,'記録者':'','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
+      const rows=res.items.map(it=>{ const r=byName.get(normName(it.resident))||focusRes; return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.content,'記録者':'','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
       // ハウス全体の出来事（地震・設備・オンコールの全体報告など）は利用者IDなしの行として保存し、今日の予定カードと「この日の全員」に表示
       (res.house||[]).forEach(it=>{ if(String(it.date||'').slice(0,7)===ym) rows.push({'日付':it.date,'時刻':it.time,'利用者ID':'','氏名':'（全体）','種別':it.kind||'','内容':it.text,'記録者':'','出所':'LINE'}); });
-      await api('importExt',{key:ym+'|LINE',rows,append:start>0||i>0}); total+=rows.length;
+      await api('importExt',{key:impKey,extraKeys,rows,append:start>0||i>0}); total+=rows.length;
       // 個人日誌
-      const drows=(res.diary||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.text,'記入者':'LINE','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
-      if(drows.length){ step(`日誌を保存中${pre}`); await api('importDiary',{key:ym+'|LINE',rows:drows,append:start>0||i>0}); totalDiary+=drows.length; }
+      const drows=(res.diary||[]).map(it=>{ const r=byName.get(normName(it.resident))||focusRes; return r?{'日付':it.date,'時刻':it.time,'利用者ID':r.id,'氏名':r['氏名'],'種別':it.kind,'内容':it.text,'記入者':'LINE','出所':'LINE'}:null; }).filter(Boolean).filter(r=>r['日付'].slice(0,7)===ym);
+      if(drows.length){ step(`日誌を保存中${pre}`); await api('importDiary',{key:impKey,extraKeys,rows:drows,append:start>0||i>0}); totalDiary+=drows.length; }
       // 予定（入居者個人／アロハハウス全体）：追加のみ
       const kindMap=k=>({'訪看':'訪看','訪介':'訪介','受診':'受診','往診':'往診','入院':'入院','退院':'退院','面会':'面会','外出':'外出','行事':'行事','業者':'業者','会議':'会議'})[k]||'その他';
       const srows=(res.schedules||[]).map(it=>{ if(it.resident==='アロハハウス') return {'日付':it.date,'利用者ID':'','氏名':'アロハハウス','種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}; const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'種別':kindMap(it.kind),'開始':it.time||'','終了':'','内容':it.content,'担当':''}:null; }).filter(Boolean);
@@ -484,7 +500,7 @@ async function importLineFile(f, st, ym){
       if(mrows.length){ step(`食事記録を保存中${pre}`); try{ const a=await api('autoMeals',{rows:mrows,source:'LINE'}); totalMeals+=a.saved||0; }catch(e){} }
     }
     step('仕上げ中'); await saveCursor(); stampImport(['LINE']); curStep='';
-    st.innerHTML=`<span style="font-weight:700;color:#1f7a3a">✓ 完了</span>　LINE ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件・食事${totalMeals}件を保存しました（${Math.round((Date.now()-t0)/1000)}秒）。日誌タブと予定タブで確認し、違うものは削除してください`;
+    st.innerHTML=`<span style="font-weight:700;color:#1f7a3a">✓ 完了</span>　${esc(roomLabel)} ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件・食事${totalMeals}件を保存しました（${Math.round((Date.now()-t0)/1000)}秒）。日誌タブと予定タブで確認し、違うものは削除してください`;
     loadDay(); if($('#p-set').classList.contains('on')) loadExtList();
   }catch(err){ curStep=''; st.innerHTML='<span style="color:#b3261e;font-weight:700">⚠ エラー</span> '+esc(err.message); console.error(err); } finally{ clearInterval(tm); busy(false); }
 }
