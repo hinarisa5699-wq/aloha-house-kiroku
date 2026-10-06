@@ -109,7 +109,12 @@ table.cal.week td{height:230px;font-size:12px} table.cal.week th{font-size:13px;
 .mform label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
 .mform .w{grid-column:1/-1}
 .hide{display:none!important}
-.drop{display:block;border:2px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);margin:8px 0}
+.drop{display:block;border:3px dashed #8a93a6;border-radius:10px;padding:16px;text-align:center;color:#334;font-size:16px;font-weight:700;background:#f7f8fb;margin:8px 0;cursor:pointer}
+.drop:hover{border-color:var(--pri);background:var(--pri-bg)}
+/* 目立つ大きなドロップ枠（LINEトーク履歴用）：文字を大きく、色付きで */
+.drop.big{padding:28px 16px;font-size:22px;line-height:1.5;border:4px dashed #1a73e8;background:#eaf2ff;color:#0b3d91;border-radius:14px;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.drop.big small{font-size:15px;font-weight:400;color:#355}
+.drop.big .ic{font-size:40px;line-height:1}
 .drop input{display:none}
 .status{font-size:12.5px;background:#f8fafc;border-radius:6px;padding:8px}
 @media(min-width:800px){.mform{grid-template-columns:repeat(4,1fr)} .res .nm{font-size:15px}}
@@ -123,7 +128,7 @@ table.cal.week td{height:230px;font-size:12px} table.cal.week th{font-size:13px;
 .scroll table.stk2 th:nth-child(2),.scroll table.stk2 td:nth-child(2){left:36px;box-shadow:2px 0 0 #c9d0d6}
 .scroll table.stk1 th:first-child,.scroll table.stk1 td:first-child{box-shadow:2px 0 0 #c9d0d6}
 @media print{.scroll table.stk1 th,.scroll table.stk1 td,.scroll table.stk2 th,.scroll table.stk2 td{position:static;box-shadow:none}}
-.drop{padding:12px}.drop.over{border-color:var(--pri);background:var(--pri-bg);color:var(--pri)}
+.drop.over{border-color:var(--pri);background:var(--pri-bg);color:var(--pri)}
 .mform label>label.drop{margin:4px 0 0}
 table.kv th{width:90px;text-align:left;background:#eef1f4;font-weight:600}table.kv td{text-align:left}
 .tr-h{font-weight:700;margin:8px 0 3px;border-left:4px solid var(--pri);padding-left:6px}
@@ -352,13 +357,13 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
     <p class="muted">LINEのトークルーム → 右上メニュー → その他 → トーク履歴を送信 で出る .txt を選ぶと、対象月の投稿から入居者ごとの事実（服薬・食事・受診・体調・家族など）をAIが抜き出し、「他部署の記録」に入ります。AIを使うため Anthropic のAPIキーが必要です（1回の取り込みで数十円程度）。</p>
     <div class="field"><div class="lb"><span>Anthropic APIキー（sk-ant-…）</span><span id="aiStatus" class="muted"></span></div><div class="row"><input type="password" id="aiKey" placeholder="設定済みなら空のままで可"><button class="btn" id="aiKeySave" style="flex:none">保存</button></div></div>
     <div class="mform">
-      <label>対象月<select id="lineYM"></select></label>
-      <label>トーク履歴（.txt・複数可）<label class="drop">選択／ドロップ<input type="file" id="impLine2" accept=".txt" multiple></label></label>
-      <label style="align-self:end"><input type="checkbox" id="lineRedo"> 最初から取り込み直す</label>
-      <label>ご家族グループのとき：対象の入居者<select id="lineRes"><option value="">（職員の全体グループ：名前で判定）</option></select></label>
+      <label>対象月<select id="lineYM" style="font-size:16px"></select></label>
+      <label style="align-self:end;font-size:15px"><input type="checkbox" id="lineRedo" style="width:20px;height:20px;vertical-align:middle"> 最初から取り込み直す</label>
+      <label>ご家族グループのとき：対象の入居者<select id="lineRes" style="font-size:16px"><option value="">（職員の全体グループ：名前で判定）</option></select></label>
     </div>
+    <label class="drop big"><span class="ic">📂</span><span>ここに LINEトーク履歴（.txt）をドロップ</span><small>または ここをクリックしてファイルを選ぶ（複数まとめてOK）</small><input type="file" id="impLine2" accept=".txt" multiple></label>
     <div class="muted">通常は前回取り込んだ続き（新しい投稿）だけをAIに読ませます。同じトーク履歴を再出力してドロップするだけでOKです。複数のトーク履歴をまとめて選べば順番に取り込みます。トークルームごとに「どこまで読んだか」を別々に覚えます。特定の入居者のご家族とのグループ（例：○○様グループ）は、右で入居者を選ぶと名前が書かれていない投稿もその方の記録として読みます（一度選ぶとそのグループは次回から自動で同じ方になります）。</div>
-    <div class="status" id="lineStatus">—</div>
+    <div class="status" id="lineStatus" style="font-size:16px">—</div>
   </div>
   <div class="card">
     <h2>ログインパスワード</h2>
@@ -383,9 +388,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=muw0ttet"></script>
-<script src="kiroku.js?v=muw0ttet"></script>
-<script src="app.js?v=muw0ttet"></script>
-<script src="base.js?v=muw0ttet"></script>
+<script src="parsers.js?v=muw120e0"></script>
+<script src="kiroku.js?v=muw120e0"></script>
+<script src="app.js?v=muw120e0"></script>
+<script src="base.js?v=muw120e0"></script>
 </body>
 </html>
