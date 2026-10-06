@@ -472,8 +472,8 @@ async function importLineFile(f, st, ym, opts){ opts=opts||{};
     const lastOf=g=>`${g.y}/${g.m}/${g.d} ${g.time||''}`;
     const saveCursor=async()=>{ const last=all[all.length-1]; await sProf(curKey,{n:all.length,last:sig(last),lastAt:`${last.y}-${pad(last.m)}-${pad(last.d)} ${last.time||''}`,at:new Date().toISOString()}); };
     const roomLabel=focus?`${focus}のご家族グループ`:(hm?room:'このトークルーム');
-    if(!fresh.length){ if(legacy) await saveCursor(); curStep=''; st.textContent=`${roomLabel}：前回（${lastOf(all[all.length-1])}の投稿まで）以降の新しい投稿はこのファイルにありません。LINEからトーク履歴を書き出し直してからお試しください`; return; }
-    if(!picked.length){ await saveCursor(); curStep=''; st.textContent=`${roomLabel}：新しい投稿${fresh.length}通（〜${lastOf(all[all.length-1])}）に入居者に関するものはありませんでした（次回はこの続きから読みます）`+(focus?'':'。特定の入居者のご家族グループなら、右の「対象の入居者」を選んでから入れ直してください'); return; }
+    if(!fresh.length){ if(legacy) await saveCursor(); curStep=''; st.innerHTML=`<span style="font-weight:700;color:#1f7a3a">✓ 取り込み済み</span>　${esc(roomLabel)}：${lastOf(all[all.length-1])}の投稿まで取り込み済みで、新しい投稿はありません（そのあとの投稿があるなら、LINEからトーク履歴を書き出し直してください）`; return; }
+    if(!picked.length){ await saveCursor(); curStep=''; st.innerHTML=`<span style="font-weight:700;color:#1f7a3a">✓ 確認済み</span>　${esc(roomLabel)}：新しい投稿${fresh.length}通（〜${lastOf(all[all.length-1])}）に入居者に関するものはありませんでした（次回はこの続きから読みます）`+(focus?'':'。特定の入居者のご家族グループなら、「対象の入居者」を選んでから入れ直してください'); return; }
     const impKey=ym+'|LINE|'+room; const extraKeys=[]; // 取込キーはルーム別。旧版のキー（ym|LINE）の分は消さない（他のルームの分が混ざっているため）
     const msg=start>0?`${roomLabel}：${ym}の新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${roomLabel}：${ym}の投稿${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にあるこのグループの${ym}のLINE抽出は置き換えます）`;
     if(!confirm(msg)) { curStep=''; st.textContent='中止しました'; return; }
@@ -507,8 +507,8 @@ async function importLineFile(f, st, ym, opts){ opts=opts||{};
 if($('#impLine')) $('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
 $('#impLine2').onchange=async e=>{ const files=[...e.target.files]; const st=$('#lineStatus'); const results=[];
   // 複数ファイルは順番に処理（全体グループ／ご家族グループの区別は、覚えている対応で自動判定）
-  for(let i=0;i<files.length;i++){ const f=files[i]; const pre=files.length>1?`【${i+1}/${files.length}：${f.name}】`:''; if(pre) toast(pre+'を取り込み中'); await importLineFile(f,st,$('#lineYM').value,{useSel:files.length===1}); results.push(pre+st.textContent); }
-  if(files.length>1) st.innerHTML=results.map(esc).join('<br>');
+  for(let i=0;i<files.length;i++){ const f=files[i]; const pre=files.length>1?`【${i+1}/${files.length}：${f.name}】`:''; if(pre) toast(pre+'を取り込み中'); await importLineFile(f,st,$('#lineYM').value,{useSel:files.length===1}); results.push((pre?'<b>'+esc(pre)+'</b>':'')+st.innerHTML); }
+  if(files.length>1) st.innerHTML=results.join('<br>');
   e.target.value=''; if($('#lineRedo')) $('#lineRedo').checked=false; };
 async function showAiStatus(){ try{ const s=await api('aiStatus'); $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; }catch(e){ $('#aiStatus').textContent='確認できません（'+e.message+'）'; } }
 $('#aiKeySave').onclick=async()=>{ const k=$('#aiKey').value.trim(); if(!k) return toast('APIキーを入れてください'); if(!/^sk-ant-/.test(k)&&!confirm('sk-ant- で始まっていません。このまま保存しますか？')) return; try{ busy(true); const s=await api('setApiKey',{key:k}); $('#aiKey').value=''; $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; toast('保存しました'); }catch(e){ toast('失敗: '+e.message); } finally{ busy(false); } };
