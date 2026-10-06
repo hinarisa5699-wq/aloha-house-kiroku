@@ -353,11 +353,11 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
     <div class="field"><div class="lb"><span>Anthropic APIキー（sk-ant-…）</span><span id="aiStatus" class="muted"></span></div><div class="row"><input type="password" id="aiKey" placeholder="設定済みなら空のままで可"><button class="btn" id="aiKeySave" style="flex:none">保存</button></div></div>
     <div class="mform">
       <label>対象月<select id="lineYM"></select></label>
-      <label>トーク履歴（.txt）<label class="drop">選択／ドロップ<input type="file" id="impLine2" accept=".txt"></label></label>
+      <label>トーク履歴（.txt・複数可）<label class="drop">選択／ドロップ<input type="file" id="impLine2" accept=".txt" multiple></label></label>
       <label style="align-self:end"><input type="checkbox" id="lineRedo"> 最初から取り込み直す</label>
       <label>ご家族グループのとき：対象の入居者<select id="lineRes"><option value="">（職員の全体グループ：名前で判定）</option></select></label>
     </div>
-    <div class="muted">通常は前回取り込んだ続き（新しい投稿）だけをAIに読ませます。同じトーク履歴を再出力してドロップするだけでOKです。トークルームごとに「どこまで読んだか」を別々に覚えます。特定の入居者のご家族とのグループ（例：○○様グループ）は、右で入居者を選ぶと名前が書かれていない投稿もその方の記録として読みます（一度選ぶとそのグループは次回から自動で同じ方になります）。</div>
+    <div class="muted">通常は前回取り込んだ続き（新しい投稿）だけをAIに読ませます。同じトーク履歴を再出力してドロップするだけでOKです。複数のトーク履歴をまとめて選べば順番に取り込みます。トークルームごとに「どこまで読んだか」を別々に覚えます。特定の入居者のご家族とのグループ（例：○○様グループ）は、右で入居者を選ぶと名前が書かれていない投稿もその方の記録として読みます（一度選ぶとそのグループは次回から自動で同じ方になります）。</div>
     <div class="status" id="lineStatus">—</div>
   </div>
   <div class="card">
@@ -383,9 +383,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=muvyfku0"></script>
-<script src="kiroku.js?v=muvyfku0"></script>
-<script src="app.js?v=muvyfku0"></script>
-<script src="base.js?v=muvyfku0"></script>
+<script src="parsers.js?v=muw0ttet"></script>
+<script src="kiroku.js?v=muw0ttet"></script>
+<script src="app.js?v=muw0ttet"></script>
+<script src="base.js?v=muw0ttet"></script>
 </body>
 </html>

@@ -439,7 +439,7 @@ $('#impKiroku').onchange=async e=>{
     loadDay(); loadExtList();
   }catch(err){ st.textContent='エラー: '+err.message; console.error(err); } finally{ busy(false); e.target.value=''; }
 };
-async function importLineFile(f, st, ym){
+async function importLineFile(f, st, ym, opts){ opts=opts||{};
   const [y,m]=ym.split('-').map(Number);
   // 進み具合を「⏳ 何をしているか（経過秒）」で見せる（AIの整理とGASの保存で1〜2分かかることがある）
   const t0=Date.now(); let curStep=''; const tick=()=>{ if(curStep) st.innerHTML=`<span style="font-weight:700;color:#7a5a00">⏳ ${esc(curStep)}</span> <span class="muted">（${Math.round((Date.now()-t0)/1000)}秒経過）</span>`; }; const tm=setInterval(tick,1000); const step=x=>{ curStep=x; tick(); };
@@ -452,7 +452,7 @@ async function importLineFile(f, st, ym){
     const hm=text.match(/\[LINE\]\s*(.+?)(?:との|の)トーク履歴/); let room;
     if(hm) room=hm[1].trim().slice(0,40); else { const c={}; parsed.forEach(g=>{ if(g.sender&&!/をグループに追加しました|送信を取り消しました/.test(g.text)) c[g.sender]=(c[g.sender]||0)+1; }); const top=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]).sort(); let h=0; for(const ch of top.join('|')){ h=(h*31+ch.charCodeAt(0))>>>0; } room='r'+h.toString(36); }
     // ご家族グループ（特定の入居者の関係者とのトーク）：選んだ入居者を覚えて、次回から自動で同じ方にする
-    const lrSel=$('#lineRes'); const roomMap=gProf('line_room')||{}; let focusId=(lrSel&&lrSel.value)||roomMap[room]||''; if(lrSel&&!lrSel.value&&focusId){ lrSel.value=focusId; if(lrSel.value!==focusId) focusId=''; }
+    const lrSel=opts.useSel===false?null:$('#lineRes'); const roomMap=gProf('line_room')||{}; let focusId=(lrSel&&lrSel.value)||roomMap[room]||''; /* 複数ファイル同時のときは手で選んだ入居者は使わず、覚えている対応だけ使う */ if(lrSel&&!lrSel.value&&focusId){ lrSel.value=focusId; if(lrSel.value!==focusId) focusId=''; }
     const focusRes=focusId?D.residents.find(r=>r.id===focusId):null; const focus=focusRes?focusRes['氏名']:'';
     if(lrSel&&lrSel.value&&roomMap[room]!==lrSel.value){ roomMap[room]=lrSel.value; await sProf('line_room',roomMap); } else if(lrSel&&!lrSel.value&&roomMap[room]&&!focusId){ delete roomMap[room]; await sProf('line_room',roomMap); }
     // 前回どこまで読んだか（月×トークルームごとのカーソル）。最後に読んだ投稿を探して、その続きだけ対象にする
@@ -505,7 +505,11 @@ async function importLineFile(f, st, ym){
   }catch(err){ curStep=''; st.innerHTML='<span style="color:#b3261e;font-weight:700">⚠ エラー</span> '+esc(err.message); console.error(err); } finally{ clearInterval(tm); busy(false); }
 }
 if($('#impLine')) $('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
-$('#impLine2').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#lineStatus'),$('#lineYM').value); e.target.value=''; if($('#lineRedo')) $('#lineRedo').checked=false; };
+$('#impLine2').onchange=async e=>{ const files=[...e.target.files]; const st=$('#lineStatus'); const results=[];
+  // 複数ファイルは順番に処理（全体グループ／ご家族グループの区別は、覚えている対応で自動判定）
+  for(let i=0;i<files.length;i++){ const f=files[i]; const pre=files.length>1?`【${i+1}/${files.length}：${f.name}】`:''; if(pre) toast(pre+'を取り込み中'); await importLineFile(f,st,$('#lineYM').value,{useSel:files.length===1}); results.push(pre+st.textContent); }
+  if(files.length>1) st.innerHTML=results.map(esc).join('<br>');
+  e.target.value=''; if($('#lineRedo')) $('#lineRedo').checked=false; };
 async function showAiStatus(){ try{ const s=await api('aiStatus'); $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; }catch(e){ $('#aiStatus').textContent='確認できません（'+e.message+'）'; } }
 $('#aiKeySave').onclick=async()=>{ const k=$('#aiKey').value.trim(); if(!k) return toast('APIキーを入れてください'); if(!/^sk-ant-/.test(k)&&!confirm('sk-ant- で始まっていません。このまま保存しますか？')) return; try{ busy(true); const s=await api('setApiKey',{key:k}); $('#aiKey').value=''; $('#aiStatus').textContent=s.hasKey?`設定済み（${s.keyHint}）`:'未設定'; toast('保存しました'); }catch(e){ toast('失敗: '+e.message); } finally{ busy(false); } };
 $('#extReload').onclick=loadExtList; $('#extFilter').onchange=loadExtList;
