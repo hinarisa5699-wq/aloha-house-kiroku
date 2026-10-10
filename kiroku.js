@@ -157,6 +157,9 @@ function parseNippouPage(lines, users, diag){
       if (!users[cur]) users[cur] = { name:curName, records:[] };
       const rec = raw.match(/[（(]([^（）()]{2,12})[)）]\s*$/);
       const who = rec ? cleanStaff(rec[1]) : "";
+      // 長い特記はPDFで複数行に折り返される。直前の行が「（記録者）」で終わっておらず、この行が時刻で始まらなければ続きとしてつなぐ
+      const prevRec = users[cur].records[users[cur].records.length-1];
+      if (prevRec && prevRec.kind==="特記" && prevRec.date===dateStr && !prevRec.recorder && !/^\d{1,2}[:：]\d{2}/.test(raw) && !/^[（(][^（）()]{2,12}[)）]$/.test(raw)){ prevRec.content += raw; prevRec.recorder = who; diag.noteRows++; continue; }
       users[cur].records.push({ date:dateStr, day, kind:"特記", time:"", content:raw, recorder:who });
       diag.noteRows++;
     }
