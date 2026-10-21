@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="入居者記録">
-<meta name="theme-color" content="#1d6fb8">
+<meta name="theme-color" content="#e4602a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
@@ -155,6 +155,60 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
 @page board{size:A4 portrait;margin:10mm}
 #listOut.board{page:board} .board table.board{width:100%;border-collapse:collapse;font-size:15pt} .board table.board th,.board table.board td{border:1.5px solid #333;padding:7px 8px;vertical-align:top;text-align:left} .board table.board th{background:#eee;font-size:12pt} .board table.board td.t{white-space:nowrap;font-weight:700;width:76px} .board table.board td.rm{white-space:nowrap;width:46px;text-align:center} .board table.board td.nm{white-space:nowrap;font-weight:700} .board table.board td.memo{width:30%} .board .memo-box{border:1.5px solid #333;height:48mm;margin-top:10px;padding:6px;font-size:12pt;color:#555} .board h2.bh{font-size:20pt;margin:0 0 8px} .board .sub{font-size:11pt;color:#444;margin:6px 0 0}
 @media print{.board table.board{font-size:14pt} .board table.board tr{page-break-inside:avoid}}
+/* ===== アロハハウス配色（LPと同じオレンジ系・業務ポータルの青緑と区別）／文字・ボタン大きめ・枠ハッキリ ===== */
+:root{--pri:#e4602a;--pri-bg:#fdeadf;--pri-dk:#c94a17;--bg:#fbf5ee;--card:#fff;--line:#d8c3ae;--line2:#b89a7e;--ink:#2a221d;--muted:#6f6159;--head-bg:#fbe8d8}
+html,body{font-size:16px;background:var(--bg)}
+header{background:linear-gradient(#fff,#fff6ee);border-bottom:4px solid var(--pri);padding:9px 12px}
+header h1{font-size:19px;color:var(--pri-dk);font-weight:800}
+header h1::before{content:"🌺 ";font-size:17px}
+.datebar button{width:40px;height:40px;font-size:20px;border:2px solid var(--line2);border-radius:10px;color:var(--ink);font-weight:700}
+.datebar input{height:40px;font-size:16px;border:2px solid var(--line2);border-radius:10px;font-weight:700}
+main{padding:12px 10px 92px}
+nav.tabs{border-top:3px solid var(--pri);background:#fff;padding-top:4px;gap:3px}
+nav.tabs button{font-size:13px;padding:6px 0 7px;color:#6f6159;border-radius:12px;margin:0 2px;font-weight:600;line-height:1.15}
+nav.tabs button .ic{font-size:26px}
+nav.tabs button.on{background:var(--pri);color:#fff;font-weight:800}
+.card{border:2px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(90,60,30,.08)}
+.card h2,#todaySchCard h2{font-size:17px!important;border-left:6px solid var(--pri);padding-left:8px;line-height:1.3;color:var(--pri-dk)}
+.muted{font-size:13.5px}
+.btn{font-size:16px;padding:10px 16px;border:2px solid var(--line2);border-radius:10px;font-weight:600;color:var(--ink)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff;font-weight:700;box-shadow:0 2px 0 var(--pri-dk)}
+.btn.big{padding:17px;font-size:21px;border-radius:14px;letter-spacing:.1em}
+.btn.danger{border-color:#e3b8b4}
+#saveMeal{margin-top:6px;box-shadow:0 3px 0 var(--pri-dk),0 4px 10px rgba(228,96,42,.35)}
+#saveMeal::before{content:"✔ "}
+.res{border:2px solid var(--line);border-radius:14px;padding:12px}
+.res .room{font-size:14px;font-weight:700;color:var(--pri-dk);width:46px}
+.res .nm{font-size:18px}
+.res .nm small{font-size:12.5px}
+@media(min-width:800px){.res .nm{font-size:17px}}
+.chip{font-size:12.5px;padding:4px 6px;min-width:44px;border-radius:7px}
+.mealtabs button{font-size:17px;padding:12px 0;border:2px solid var(--line2);border-radius:12px;font-weight:700}
+.field .lb{font-size:14.5px;color:var(--ink)}
+.seg button{font-size:18px;padding:14px 0;border:2px solid var(--line2);border-radius:12px}
+.seg button.on{box-shadow:0 2px 0 var(--pri-dk)}
+.seg.sym button{font-size:15px;padding:11px 4px}
+.seg.water button{font-size:16px}
+select,textarea,input[type=text],input[type=time],input[type=date],input[type=number],input[type=url],input[type=password]{border:2px solid var(--line2);font-size:16px;border-radius:10px}
+.notes .n{font-size:15px;border-top:1px solid var(--line)} #diaryOut .n{font-size:15px;border-top:1px solid var(--line)}
+table.grid{font-size:13px}
+table.grid th,table.grid td{border:1px solid var(--line2);padding:5px 5px}
+table.grid th{background:var(--head-bg);color:var(--pri-dk);font-weight:700}
+table.cal th{background:var(--head-bg);border-color:var(--line2);font-size:13px;padding:4px}
+table.cal td{border-color:var(--line2);font-size:12px}
+table.kv th{background:var(--head-bg)}
+.scroll table.stk1 th:first-child,.scroll table.stk2 th:nth-child(-n+2){background:var(--head-bg)}
+.scroll table.stk2 th:nth-child(2),.scroll table.stk2 td:nth-child(2),.scroll table.stk1 th:first-child,.scroll table.stk1 td:first-child{box-shadow:2px 0 0 var(--line2)}
+.status{font-size:14px;background:#fff8f1;border:1px solid var(--line)}
+.drop{border:3px dashed var(--line2);background:#fff8f1;font-size:17px}
+.drop.big{border:4px dashed var(--pri);background:#fff1e6;color:#8a3b10}
+.drop.big small{color:#6f6159}
+.drop.over,.drop:hover{border-color:var(--pri);background:var(--pri-bg)}
+.tr-sum{background:#fff8f1}
+#loginGate{background:var(--bg)!important}
+.toast{font-size:16px;bottom:96px}
+@media(max-width:480px){header h1{font-size:17px} header h1::before{content:"🌺"} nav.tabs button{font-size:11.5px;margin:0 1px;padding:5px 0 6px;letter-spacing:-.02em} nav.tabs button .ic{font-size:23px}}
+@media print{header h1::before,#saveMeal::before{content:none} .card{box-shadow:none}}
 </style>
 </head>
 <body>
@@ -388,9 +442,9 @@ table.grid.tr-menu td{font-size:13px;padding:4px 5px}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mv2g0jsg"></script>
-<script src="kiroku.js?v=mv2g0jsg"></script>
-<script src="app.js?v=mv2g0jsg"></script>
-<script src="base.js?v=mv2g0jsg"></script>
+<script src="parsers.js?v=mvioknrm"></script>
+<script src="kiroku.js?v=mvioknrm"></script>
+<script src="app.js?v=mvioknrm"></script>
+<script src="base.js?v=mvioknrm"></script>
 </body>
 </html>
