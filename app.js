@@ -180,13 +180,13 @@ function renderInfo(){
 }
 function contactRow(c={}){ return `<div class="crow"><select data-k="種別">${CKINDS.map(k=>`<option ${c['種別']===k?'selected':''}>${k}</option>`).join('')}</select><input data-k="事業所" placeholder="事業所名" value="${esc(c['事業所']||'')}"><input data-k="担当者" placeholder="担当者" value="${esc(c['担当者']||'')}"><input data-k="連絡先" placeholder="電話など" value="${esc(c['連絡先']||'')}"><button type="button" class="cDel">×</button><input class="w2" data-k="メモ" placeholder="メモ（曜日・時間帯など）" value="${esc(c['メモ']||'')}" style="grid-column:2/5"></div>`; }
 $('#infoMore').onclick=()=>openBase(D.cur.id);
-$('#infoEdit').onclick=()=>{ const r=D.cur; $('#iMoveIn').value=r['入居日']||''; $('#iForm').value=r['食事形態']||''; $('#iHistory').value=r['既往歴']||''; $('#iMemo').value=r['メモ']||''; $('#formList2').innerHTML=D.forms.map(f=>`<option value="${esc(f)}">`).join(''); $('#cRows').innerHTML=contactsOf(r.id).map(contactRow).join(''); $('#infoForm').classList.remove('hide'); $('#infoView').classList.add('hide'); };
+$('#infoEdit').onclick=()=>{ const r=D.cur; $('#iRoom').value=r['部屋']||''; $('#iMoveIn').value=r['入居日']||''; $('#iForm').value=r['食事形態']||''; $('#iHistory').value=r['既往歴']||''; $('#iMemo').value=r['メモ']||''; $('#formList2').innerHTML=D.forms.map(f=>`<option value="${esc(f)}">`).join(''); $('#cRows').innerHTML=contactsOf(r.id).map(contactRow).join(''); $('#infoForm').classList.remove('hide'); $('#infoView').classList.add('hide'); };
 $('#cRows').addEventListener('click',e=>{ if(e.target.classList.contains('cDel')) e.target.closest('.crow').remove(); });
 $('#cAdd').onclick=()=>{ $('#cRows').insertAdjacentHTML('beforeend',contactRow()); };
 $('#infoCancel').onclick=()=>{ $('#infoForm').classList.add('hide'); $('#infoView').classList.remove('hide'); };
 $('#infoSave').onclick=async()=>{
   const r=D.cur; const rows=[...$('#cRows').querySelectorAll('.crow')].map(row=>{ const o={'氏名':r['氏名']}; row.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.value.trim()); return o; }).filter(o=>o['事業所']||o['担当者']||o['連絡先']);
-  try{ busy(true); const upd=await api('updateResident',{id:r.id,'入居日':$('#iMoveIn').value,'食事形態':$('#iForm').value.trim(),'既往歴':$('#iHistory').value.trim(),'メモ':$('#iMemo').value.trim()});
+  try{ busy(true); const upd=await api('updateResident',{id:r.id,'部屋':$('#iRoom').value.trim(),'入居日':$('#iMoveIn').value,'食事形態':$('#iForm').value.trim(),'既往歴':$('#iHistory').value.trim(),'メモ':$('#iMemo').value.trim()});
     Object.assign(r,upd); const idx=D.allResidents.findIndex(x=>x.id===r.id); if(idx>=0) Object.assign(D.allResidents[idx],upd);
     const saved=await api('saveContacts',{residentId:r.id,rows}); D.contacts=D.contacts.filter(c=>c['利用者ID']!==r.id).concat(saved);
     $('#infoForm').classList.add('hide'); $('#infoView').classList.remove('hide'); renderEntry(); renderResTable(); toast('保存しました'); }
