@@ -18,7 +18,7 @@ let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')
 (function(){ if(/[?&]m=1(&|$|#)/.test(location.search)) LSs('hc_mode','m'); if(/[?&]m=0(&|$|#)/.test(location.search)){ try{ localStorage.removeItem('hc_mode'); }catch(e){} } /* m=0 でスマホ用の設定（設定タブ非表示）を解除 */ if(LS('hc_mode')==='m') document.body.classList.add('fixedcfg'); })();
 (function(){ const m=(location.search+location.hash).match(/[?#&]s=([^&#]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; } /* ?s= はURLに残す（ブラウザの保存データが消えても、リロードやブックマークで接続先が復元できるように） */ if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
 // 業務ポータルからのリンク（?s=…&u=職員名&k=ポータル合言葉）：ポータルで個人ログイン済みの職員はパスワードなしで開き、記入者をその人にしておく
-(function(){ const q=location.search+location.hash; const mu=q.match(/[?#&]u=([^&#]+)/), mk=q.match(/[?#&]k=([^&#]+)/); if(mu&&mk){ try{ const u=decodeURIComponent(mu[1].replace(/\+/g,' ')).trim(); LSs('hc_portal_k',decodeURIComponent(mk[1])); if(u) LSs('hc_staff',u); }catch(e){} } })();
+(function(){ const q=location.search+location.hash; const mu=q.match(/[?#&]u=([^&#]+)/), mk=q.match(/[?#&]k=([^&#]+)/); if(mu&&mk){ try{ const u=decodeURIComponent(mu[1].replace(/\+/g,' ')).replace(/[\s　]+/g,''); /* 記入者リストは姓名の間にスペースなし */ LSs('hc_portal_k',decodeURIComponent(mk[1])); if(u) LSs('hc_staff',u); }catch(e){} } })();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
   if(!cfg.url) throw new Error('設定でGASのURLを入れてください');
