@@ -17,6 +17,8 @@ let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')
 // スマホ・タブレット用リンク（?s=…&m=1）で開いた端末は「設定」タブを出さない（接続先はリンクに入っているので手で触る必要がない）
 (function(){ if(/[?&]m=1(&|$|#)/.test(location.search)) LSs('hc_mode','m'); if(/[?&]m=0(&|$|#)/.test(location.search)){ try{ localStorage.removeItem('hc_mode'); }catch(e){} } /* m=0 でスマホ用の設定（設定タブ非表示）を解除 */ if(LS('hc_mode')==='m') document.body.classList.add('fixedcfg'); })();
 (function(){ const m=(location.search+location.hash).match(/[?#&]s=([^&#]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; } /* ?s= はURLに残す（ブラウザの保存データが消えても、リロードやブックマークで接続先が復元できるように） */ if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
+// 業務ポータルからのリンク（?s=…&u=職員名&k=ポータル合言葉）：ポータルで個人ログイン済みの職員はパスワードなしで開き、記入者をその人にしておく
+(function(){ const q=location.search+location.hash; const mu=q.match(/[?#&]u=([^&#]+)/), mk=q.match(/[?#&]k=([^&#]+)/); if(mu&&mk){ try{ const u=decodeURIComponent(mu[1].replace(/\+/g,' ')).trim(); LSs('hc_portal_k',decodeURIComponent(mk[1])); if(u) LSs('hc_staff',u); }catch(e){} } })();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
   if(!cfg.url) throw new Error('設定でGASのURLを入れてください');
@@ -57,6 +59,7 @@ async function boot(){
   $('#cfgUrl').value=cfg.url; $('#cfgToken').value=cfg.token; $('#formsText').value=D.forms.join(',');
   if(!cfg.url){ $('#todayList').innerHTML='<div class="card">はじめに「設定」でGASのURLと合言葉を入れてください。</div>'; show('set'); return; }
   if(!(+LS('hc_login')>Date.now()) && +CK('hc_login')>Date.now()) LSs('hc_login',CK('hc_login')); // ログイン期限はCookieにも控える
+  if(!(+LS('hc_login')>Date.now()) && LS('hc_portal_k')){ try{ const r=await api('loginPortal',{key:LS('hc_portal_k'),staff:LS('hc_staff')||''}); if(r&&r.until){ LSs('hc_login',String(r.until)); CKs('hc_login',String(r.until)); } }catch(e){} } // ポータル経由の端末は合言葉で自動ログイン（期限切れのときも自動で延長）
   if(!(+LS('hc_login')>Date.now())){ // ログイン：まずパスワード画面をすぐ出す（サーバ側でパスワード未設定なら裏で確認して自動で通す）
     $('#loginGate').classList.remove('hide'); $('#loginPw').focus();
     api('login',{pw:''}).then(r=>{ if(r&&r.none){ LSs('hc_login',String(Date.now()+30*86400000)); $('#loginGate').classList.add('hide'); boot(); } }).catch(()=>{});
