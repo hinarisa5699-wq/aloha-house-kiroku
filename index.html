@@ -49,7 +49,7 @@ nav.tabs button.on{color:var(--pri);font-weight:700}
 .chip.sym{background:var(--bad-bg);color:var(--bad);font-weight:700}
 .chip.skip{background:#e5e7eb;color:#555}
 .sch{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;margin:2px 2px 0 0;border-left:3px solid;background:#f8fafc}
-.sch.nurse{border-color:var(--nurse)}.sch.rehab{border-color:#7b5cc7}.sch.helper{border-color:var(--helper)}.sch.day{border-color:var(--day)}.sch.manual{border-color:var(--manual);font-weight:700}
+.sch.nurse{border-color:var(--nurse)}.sch.rehab{border-color:#7b5cc7}.sch.helper{border-color:var(--helper)}.sch.day{border-color:var(--day)}.sch.manual{border-color:var(--manual);font-weight:700}.sch.money{border-color:#d4a017;background:#fff8dc;font-weight:700}
 .crow{display:grid;grid-template-columns:90px 1fr 1fr 1fr 28px;gap:4px;margin-top:4px}.crow input,.crow select{padding:6px;font-size:13px}.crow button{padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--bad)}
 @media(max-width:600px){.crow{grid-template-columns:80px 1fr 28px}.crow .w2{grid-column:1/3}}
 .ext{font-size:12.5px;padding:4px 6px;border-left:3px solid #8a6d3b;background:#fbf7ef;margin:3px 0;border-radius:3px}
@@ -302,7 +302,7 @@ table.kv th{background:var(--head-bg)}
     <h2>予定の登録（往診・受診・入院など）</h2>
     <div class="mform">
       <label>利用者<select id="sRes"></select></label>
-      <label>種別<select id="sKind"><option>往診</option><option>受診</option><option>入院</option><option>外出</option><option>面会</option><option>デイ</option><option>行事</option><option>その他</option></select></label>
+      <label>種別<select id="sKind"><option>往診</option><option>受診</option><option>入院</option><option>外出</option><option>面会</option><option>デイ</option><option>行事</option><option>お金</option><option>その他</option></select></label>
       <label class="w">内容（病院名など）<input type="text" id="sText" placeholder="例：町田病院 整形外科"></label>
       <label>開始<input type="time" id="sStart"></label><label>終了<input type="time" id="sEnd"></label>
       <label class="w">繰り返し<select id="sRule"><option value="once">1回のみ（日付指定）</option><option value="weekly">毎週（曜日）</option><option value="biweekly">隔週（曜日）</option><option value="monthly">毎月（○日）</option><option value="nthdow">毎月（第○曜日）</option><option value="range">期間（入院など）</option></select></label>
@@ -317,6 +317,13 @@ table.kv th{background:var(--head-bg)}
       <button class="btn pri w" id="sAdd">登録</button>
       <div class="w" id="sMsg" style="font-weight:700;color:#1f7a3a;min-height:1.2em"></div>
     </div>
+  </div>
+  <div class="card" id="moneyCard">
+    <h2>お金の予定（引出・お渡し・買い物・支払い）</h2>
+    <div class="muted" style="margin-bottom:8px">金銭管理をしている入居者の「お金の計画」（<span id="moneyVer"></span>版）を、予定表に種別「お金」として登録します。登録すると「今日の予定」と予定一覧に出ます。同じ予定は二重に登録されません。実施したら予定一覧の「変更」で内容の先頭に「済」を付けてください。</div>
+    <div class="row"><select id="moneyRes" style="flex:1"></select><button class="btn pri" id="moneyAdd" style="flex:none">お金の予定を登録</button></div>
+    <div id="moneyMsg" style="font-weight:700;color:#1f7a3a;min-height:1.2em;margin-top:6px"></div>
+    <div class="muted" style="margin-top:6px">木藤様：毎月保護費のあとに7,000円引出（日用品5,000＋お小遣い2,000）、お小遣いは隔週月曜1,000円、月曜に買い物支援1,000円まで、27日に口座引落 約118,500円。<br>大部様：毎月3日（土日祝は次の平日）に引出（お小遣い2,000＋買い物1,000×週数）、金曜に買い物同行1,000円まで、月末までにアロハハウスへ振込。</div>
   </div>
   <div class="card">
     <h2>予定の一覧（今月以降）</h2>
@@ -446,5 +453,6 @@ table.kv th{background:var(--head-bg)}
 <script src="kiroku.js?v=mv89ebf560"></script>
 <script src="app.js?v=mv89ebf560"></script>
 <script src="base.js?v=mv89ebf560"></script>
+<script src="money.js?v=r8118"></script>
 </body>
 </html>
