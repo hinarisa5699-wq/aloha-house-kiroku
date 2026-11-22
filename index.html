@@ -240,6 +240,12 @@ table.kv th{background:var(--head-bg)}
 .gt{width:100%;border-collapse:collapse;font-size:12.5px} .gt th,.gt td{border:1px solid #aaa;padding:4px 6px;vertical-align:top;text-align:left} .gt th{background:#fdf0e4}
 .gn{font-size:12.5px;padding:2px 0;border-bottom:1px dotted #ccc} .gm{font-weight:700;color:#7a4a1a;font-size:11.5px}
 @media print{ body.print-diary .gyomu h2{font-size:15pt} body.print-diary .gt{font-size:9.5pt} body.print-diary .gn{font-size:9.5pt} body.print-diary .gt tr{page-break-inside:avoid} body.print-diary .gt th{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact} }
+
+/* 閲覧のみ 2026/11/22 */
+body.ro #saveMeal,body.ro #delMeal,body.ro #saveNote,body.ro #saveBowel,body.ro .mcbtn,body.ro [data-dadd],body.ro [data-kk],body.ro .hx-write,body.ro #infoEdit,body.ro #gAdd,body.ro .lockmsg,body.ro .staffbox,body.ro [data-del],body.ro [data-ddel],body.ro [data-bdel]{display:none!important}
+body.ro nav.tabs button[data-p="set"]{display:none}
+body.ro #p-entry.nostaff .lockable{opacity:1;pointer-events:auto}
+body.ro::before{content:"閲覧のみ（編集はできません）";display:block;position:sticky;top:0;z-index:50;background:#555;color:#fff;text-align:center;font-weight:700;padding:4px;font-size:13px}
 </style>
 </head>
 <body>
@@ -490,10 +496,10 @@ table.kv th{background:var(--head-bg)}
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mv20261122m"></script>
-<script src="kiroku.js?v=mv20261122m"></script>
-<script src="app.js?v=mv20261122m"></script>
-<script src="base.js?v=mv20261122m"></script>
+<script src="parsers.js?v=mv20261122n"></script>
+<script src="kiroku.js?v=mv20261122n"></script>
+<script src="app.js?v=mv20261122n"></script>
+<script src="base.js?v=mv20261122n"></script>
 <script src="money.js?v=r8118"></script>
 </body>
 </html>

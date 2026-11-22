@@ -19,10 +19,15 @@ let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')
 (function(){ if(/[?&]m=1(&|$|#)/.test(location.search)) LSs('hc_mode','m'); if(/[?&]m=0(&|$|#)/.test(location.search)){ try{ localStorage.removeItem('hc_mode'); }catch(e){} } /* m=0 でスマホ用の設定（設定タブ非表示）を解除 */ if(LS('hc_mode')==='m') document.body.classList.add('fixedcfg'); })();
 (function(){ const m=(location.search+location.hash).match(/[?#&]s=([^&#]+)/); const h=m&&decCfg(m[1]); if(h){ cfg=h; } /* ?s= はURLに残す（ブラウザの保存データが消えても、リロードやブックマークで接続先が復元できるように） */ if(cfg.url){ LSs('hc_url',cfg.url); LSs('hc_token',cfg.token); CKs('hc_url',cfg.url); CKs('hc_token',cfg.token); } })();
 // 業務ポータルからのリンク（?s=…&u=職員名&k=ポータル合言葉）：ポータルで個人ログイン済みの職員はパスワードなしで開き、記入者をその人にしておく
+// 閲覧のみ（ハウス以外の職員・ケアマネ）：ポータルから ro=1 付きで開くと編集できない。ポータルから ro なしで開いたら解除 2026/11/22
+(function(){ try{ const q=location.search+location.hash; if(/[?#&]k=/.test(q)) LSs('hc_ro',/[?#&]ro=1(&|$)/.test(q)?'1':'0'); }catch(e){} })();
+const RO=()=>LS('hc_ro')==='1';
+const RO_OK=/^(init|day|month|diaryList|extList|schedulesFrom|ping|login|loginPortal|aiStatus)$/;
 (function(){ const q=location.search+location.hash; const mu=q.match(/[?#&]u=([^&#]+)/), mk=q.match(/[?#&]k=([^&#]+)/); if(mu&&mk){ try{ const u=decodeURIComponent(mu[1].replace(/\+/g,' ')).replace(/[\s　]+/g,''); /* 記入者リストは姓名の間にスペースなし */ LSs('hc_portal_k',decodeURIComponent(mk[1])); if(u){ LSs('hc_staff',u); LSs('hc_staff_at',String(Date.now())); } }catch(e){} } })();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
   if(!cfg.url) throw new Error('設定でGASのURLを入れてください');
+  if(RO()&&!RO_OK.test(action)){ toast('閲覧のみです（編集はハウスの職員が行います）'); throw new Error('閲覧のみです'); }
   if(action==='saveResidents'){ const n=(params.residents||[]).length, cur=(D&&D.allResidents||[]).length; if(!cur) throw new Error('入居者一覧をまだ読み込めていないので保存しません（読み込み直してください）'); if(n<cur&&!params._ok) throw new Error(`入居者が${cur}人から${n}人に減るので保存しません`); } // 一覧を消してしまう事故を防ぐ（2026/11/22）
   let lastErr;
   for(let i=0;i<4;i++){ // GASがまれにHTMLを返すことがあるので、JSONでなければ少し待って再試行
@@ -57,7 +62,7 @@ function shiftDate(n){const d=new Date(D.date+'T00:00:00');d.setDate(d.getDate()
 function dateLabel(s){const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`;}
 
 // ===== 読み込み =====
-async function boot(){
+async function boot(){ document.body.classList.toggle('ro',RO());
   $('#cfgUrl').value=cfg.url; $('#cfgToken').value=cfg.token; $('#formsText').value=D.forms.join(',');
   if(!cfg.url){ $('#todayList').innerHTML='<div class="card">はじめに「設定」でGASのURLと合言葉を入れてください。</div>'; show('set'); return; }
   if(!(+LS('hc_login')>Date.now()) && +CK('hc_login')>Date.now()) LSs('hc_login',CK('hc_login')); // ログイン期限はCookieにも控える
@@ -198,7 +203,7 @@ const PORTAL_API='https://script.google.com/macros/s/AKfycbzqLpjhu6GyK_JWsHLI6E_
 const lwT=ms=>{ const d=new Date(ms); return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 function portalKey(){ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']==='portal_key'); let v=''; try{ v=r?JSON.parse(r['値']):''; }catch(e){ v=r?r['値']:''; } return LS('hc_portal_k')||v||''; }
 async function portalKeySync(){ const k=LS('hc_portal_k'); const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']==='portal_key'); if(k&&!r){ try{ await api('saveProfile',{residentId:'',key:'portal_key',value:k}); D.profiles.push({'利用者ID':'','キー':'portal_key','値':JSON.stringify(k)}); }catch(e){} } } // ポータルから開いた端末の合言葉を、共有タブレットでも使えるように保存
-async function portalApi(action,params){ const key=portalKey(); if(!key) throw new Error('ポータルの合言葉がありません（一度ポータルからこのアプリを開いてください）');
+async function portalApi(action,params){ if(RO()&&!/^(kakuninByDate|houseUsers)$/.test(action)) throw new Error('閲覧のみです'); const key=portalKey(); if(!key) throw new Error('ポータルの合言葉がありません（一度ポータルからこのアプリを開いてください）');
   const r=await fetch(PORTAL_API,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({action,key},params||{}))}); const j=JSON.parse(await r.text()); if(!j.ok) throw new Error(j.error||'エラー'); return j.data; }
 // 「知らせる」：日誌を書いたあと、ポータルのやることに「確認事項があります」を出す（今すぐ／予約）
 async function openKK(rid){ staffExpire(); const r=rid?D.residents.find(x=>x.id===rid):HOUSE_R; if(!r) return; let ov=$('#kkOv'); if(!ov){ ov=document.createElement('div'); ov.id='kkOv'; ov.className='ov'; document.body.appendChild(ov); }
