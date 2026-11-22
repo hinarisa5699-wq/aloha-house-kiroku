@@ -220,7 +220,7 @@ async function openKK(rid){ staffExpire(); const r=rid?D.residents.find(x=>x.id=
 function hxBind(sel){ $$(sel+' .hx-go').forEach(el=>el.onclick=()=>{ D.hxFocus=el.innerText.replace(/\s+/g,' ').trim(); $('#dMode').value='day'; show('diary'); window.scrollTo(0,0); }); }
 // ----- アロハ花子（ハウス日誌）の過去の記録で、入居者が決まっていないものを振り分ける（途中で切れた文は同じ記録ごとにつなげて表示）-----
 async function renderSort(out){ out.innerHTML='<div class="muted">読み込み中…</div>'; const all=[]; const n=new Date(); for(let i=3;i>=0;i--){ const d=new Date(n.getFullYear(),n.getMonth()-i,1); const ym=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; try{ const m=await api('month',{ym}); all.push(...(m.ext||[]).filter(e=>e['出所']==='ハウス日誌')); }catch(e){} }
-  const keep=new Set(profOf('','hx_keep')||[]);
+  const keep=new Set((()=>{ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']==='hx_keep'); try{ return r?JSON.parse(r['値'])||[]:[]; }catch(e){ return []; } })());
   const R=D.residents; const sur=r=>String(r['氏名']).split(/[\s　]/)[0]; const alt={'安藝':['安藝','安芸']};
   // 同じ日・時刻・記録者の切れた文を1つにまとめる
   const groups=[]; const gm={}; all.filter(e=>!e['利用者ID']&&e['種別']!=='オンコール'&&!keep.has(e.id)).forEach(e=>{ const k=e['日付']+'|'+(e['時刻']||'')+'|'+(e['記録者']||''); if(!gm[k]){ gm[k]={k,e,ids:[],texts:[]}; groups.push(gm[k]); } gm[k].ids.push(e.id); gm[k].texts.push(String(e['内容']||'')); });
