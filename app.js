@@ -221,14 +221,14 @@ function hxBind(sel){ $$(sel+' .hx-go').forEach(el=>el.onclick=()=>{ D.hxFocus=e
 // ----- アロハ花子（ハウス日誌）の過去の記録で、入居者が決まっていないものを振り分ける（途中で切れた文は同じ記録ごとにつなげて表示）-----
 async function renderSort(out){ out.innerHTML='<div class="muted">読み込み中…</div>'; const all=[]; const n=new Date(); for(let i=3;i>=0;i--){ const d=new Date(n.getFullYear(),n.getMonth()-i,1); const ym=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; try{ const m=await api('month',{ym}); all.push(...(m.ext||[]).filter(e=>e['出所']==='ハウス日誌')); }catch(e){} }
   const keep=new Set((()=>{ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']==='hx_keep'); try{ return r?JSON.parse(r['値'])||[]:[]; }catch(e){ return []; } })());
-  const R=D.residents; const sur=r=>String(r['氏名']).split(/[\s　]/)[0]; const alt={'安藝':['安藝','安芸']};
+  const R=D.residents; const sur=r=>String(r['氏名']).split(/[\s　]/)[0]; const given=r=>String(r['氏名']).split(/[\s　]/)[1]||''; const ALT={'安藝':['安芸','あき'],'大嶋':['大島'],'新城':['新庄']}; const keys=r=>[sur(r),...(ALT[sur(r)]||[]),given(r)].filter(x=>x&&x.length>=2); // 名字・下の名前・よくある書き間違い
   // 同じ日・時刻・記録者の切れた文を1つにまとめる
   const groups=[]; const gm={}; all.filter(e=>!e['利用者ID']&&e['種別']!=='オンコール'&&!keep.has(e.id)).forEach(e=>{ const k=e['日付']+'|'+(e['時刻']||'')+'|'+(e['記録者']||''); if(!gm[k]){ gm[k]={k,e,ids:[],texts:[]}; groups.push(gm[k]); } gm[k].ids.push(e.id); gm[k].texts.push(String(e['内容']||'')); });
   groups.forEach(g=>{ g.text=g.texts.join(''); const sib=all.filter(x=>x['日付']+'|'+(x['時刻']||'')+'|'+(x['記録者']||'')===g.k); g.ctx=sib.map(x=>x['利用者ID']?esc(x['内容']||''):`<b style="background:#fff3c4">${esc(x['内容']||'')}</b>`).join(''); g.hasCtx=sib.some(x=>x['利用者ID']); }); // 同じ記録のうち入居者が決まっている部分も前後の文として見せる
   groups.sort((a,b)=>(a.e['日付']+(a.e['時刻']||'')).localeCompare(b.e['日付']+(b.e['時刻']||'')));
-  const guess=g=>{ const t=g.text; const h=R.filter(r=>(alt[sur(r)]||[sur(r)]).some(s=>t.includes(s))); if(h.length===1) return {v:h[0].id};
+  const guess=g=>{ const t=g.text; const h=R.filter(r=>keys(r).some(s=>t.includes(s))); if(h.length===1) return {v:h[0].id};
     const ids=[...new Set(all.filter(x=>x['利用者ID']&&x['日付']===g.e['日付']&&x['時刻']===g.e['時刻']&&(x['記録者']||'')===(g.e['記録者']||'')).map(x=>x['利用者ID']))]; if(ids.length===1) return {v:ids[0]};
-    const m=t.match(/([一-龥ぁ-んァ-ヶ]{1,4})(様|さん)/); if(m&&!/娘|息子|奥|旦那|ご家族|本人|御本人|皆|職員|ヘルパー|看護師|先生/.test(m[1])) return {v:'day',name:m[1]}; return {v:''}; };
+    const m=t.match(/(?:^|[^一-龥])([一-龥]{2,3})(様|さん)/); if(m&&!/娘|息子|奥|旦那|家族|本人|職員|看護|先生|本日|全介助|予定|歯科|病院|薬局|業者/.test(m[1])) return {v:'day',name:m[1]}; return {v:''}; };
   if(!groups.length){ out.innerHTML='<div class="card">振り分けが必要な記録はありません。</div>'; return; }
   const opts=g=>{ const x=guess(g); return `<option value="">（選んでください）</option>${R.map(r=>`<option value="${r.id}" ${r.id===x.v?'selected':''}>${esc(r['部屋'])} ${esc(r['氏名'])}（入居者の個人日誌へ）</option>`).join('')}<option value="day" ${x.v==='day'?'selected':''}>デイの利用者（ハウス外）の記録へ</option><option value="keep">ハウス全体の記録として残す</option>`; };
   out.innerHTML=`<div class="card"><h2 style="margin:0 0 6px">アロハ花子（ハウス日誌）の記録の振り分け</h2><div class="muted">入居者が決まっていない記録 ${groups.length}件です（途中で切れていた文は、同じ記録ごとにつなげました）。行き先を選んで「移す」を押してください。<br>・入居者 → その人の個人日誌へ　・デイの利用者（小野様・関根様など、ハウスに住んでいない方）→「デイ利用者の記録」へ（名前を入れる）　・どれでもない → ハウス全体の記録として残す<br>最初から選ばれているのは自動で見つけた候補です。</div><button class="btn pri" id="srtAll" style="margin-top:8px">行き先を選んだものをまとめて移す</button></div>`+
