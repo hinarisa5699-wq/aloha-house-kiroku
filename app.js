@@ -289,7 +289,7 @@ async function ocCsv(ym){ const [y,m]=ym.split('-').map(Number); const nx=`${m==
   // ① オンコール報告（この画面から入れたもの）が正
   dl.filter(e=>String(e.id||'').startsWith('ocd-')).forEach(e=>{ const mm=String(e['内容']).match(/オンコール呼び出し(\d+)件【担当:([^】]*)】/); byDuty[e['日付']]={duty:e['日付'],staff:mm?mm[2]:e['記入者'],count:mm?Number(mm[1]):0,src:'オンコール報告',calls:[]}; });
   // ② アロハ花子（カイポケのハウス日誌）の「オンコール呼び出し○件【担当:○○】」（当番明けの朝の記録 → 前日が当番日）
-  ext.filter(e=>e['利用者ID']===''&&/オンコール呼び出し/.test(e['内容']||'')).forEach(e=>{ const t=String(e['内容']); const am=t.match(/[【[]([^】\]]*担当[^】\]]*)(?:[】\]]|$)/); if(!am) return; const staff=am[1].replace(/担当/g,'').replace(/[:：\s　]/g,''); if(!staff) return;
+  ext.filter(e=>e['利用者ID']===''&&/オンコール呼び出し/.test(e['内容']||'')).forEach(e=>{ const t=String(e['内容']); const am=t.match(/[【[]([^】\]]*担当[^】\]]*)(?:[】\]]|$)/); if(!am) return; const staff=am[1].replace(/担当/g,'').replace(/[:：]/g,'').trim().split(/[\s　。、]/)[0]; if(!staff) return; // 閉じ括弧の無い「【担当: 池田 み。22時」も名前だけ
     const cm=t.match(/オンコール呼び出し\s*([0-9０-９]*)\s*件/); const cnt=Number(String(cm&&cm[1]||'0').replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xfee0))); const duty=addDay(e['日付'],-1); if(byDuty[duty]) return; byDuty[duty]={duty,staff,count:cnt,src:'アロハ花子',calls:[]}; });
   // ③ 内容：入居者の個人日誌のオンコール記録（12時以降はその日、12時より前は前日の当番）
   dl.filter(e=>e['種別']==='オンコール'&&e['利用者ID']).forEach(e=>{ const t=e['時刻']||''; const duty=(!t||t>='12:00')?e['日付']:addDay(e['日付'],-1); (byDuty[duty]||(byDuty[duty]={duty,staff:'',count:0,src:'個人日誌のみ',calls:[]})).calls.push(`${t?t+' ':''}${nm[e['利用者ID']]||''}様：${String(e['内容']).replace(/\s+/g,' ')}`); });
