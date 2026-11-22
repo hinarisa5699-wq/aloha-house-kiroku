@@ -70,7 +70,7 @@ async function boot(){
   const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); const lr=$('#lineRes'); if(lr){ const cur=lr.value; lr.innerHTML='<option value="">（職員の全体グループ：名前で判定）</option>'+D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); lr.value=cur; } };
   try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=dayCacheGet(D.date); if(cb&&cb.residents){ applyBoot(cb); if(cd){ D.day=cd; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
   const slow=setTimeout(()=>{ if(/読み込み中/.test($('#todayList').textContent)) $('#todayList').innerHTML='<div class="card">読み込みに時間がかかっています。通信状況を確認して、少し待つか<button class="btn" type="button" onclick="location.reload()">再読み込み</button>してください。</div>'; },15000);
-  try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); portalKeySync(); if(window._openPanel==='diary'){ window._openPanel=''; $('#dMode').value='day'; show('diary'); } D.day=d; dayCachePut(D.date,d); renderToday(); loadBowel(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
+  try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); portalKeySync().then(portalFill); if(window._openPanel==='diary'){ window._openPanel=''; $('#dMode').value='day'; show('diary'); } D.day=d; dayCachePut(D.date,d); renderToday(); loadBowel(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
   catch(e){ $('#todayList').innerHTML=`<div class="card">接続できません：${e.message}<br><span class="muted">設定を確認してください</span></div>`; }
   finally{ busy(false); }
 }
@@ -216,6 +216,16 @@ async function openKK(rid){ staffExpire(); const r=rid?D.residents.find(x=>x.id=
     const b=$('#kkSend'); b.disabled=true; b.textContent='送信中…';
     try{ await portalApi('kakuninAdd',{group:$('#kkGroup button.on').dataset.v,title:`${nm}の日誌に確認事項があります`,text,from:staff,date:D.date,resident:r.id?r['氏名']:'',at}); ov.classList.add('hide'); toast(later?`${lwT(at)} にポータルへ出す予約をしました`:'ポータルのやることに出しました'); }
     catch(e){ $('#kkMsg').textContent='送れませんでした: '+e.message; } finally{ b.disabled=false; b.textContent='知らせる'; } }; }
+// 業務ポータル（カイポケ取り込み済み）の利用者情報から、入居者の基本情報の空欄を自動で埋める（入っている値は上書きしない）2026/11/22
+async function portalFill(){ try{ if(LS('hc_pfill')===todayStr()) return; const list=await portalApi('houseUsers',{}); if(!Array.isArray(list)) return; LSs('hc_pfill',todayStr());
+  const nn=x=>String(x||'').replace(/[\s　]/g,''); const hira=x=>String(x||'').replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)); const items=[];
+  for(const r of D.residents){ const u=list.find(x=>nn(x.name)===nn(r['氏名'])); if(!u) continue;
+    const pr=(D.profiles||[]).find(p=>p['利用者ID']===r.id&&p['キー']==='basic'); let b={}; try{ b=pr?JSON.parse(pr['値'])||{}:{}; }catch(e){ b={}; } let ch=false;
+    const set=(k,v)=>{ if(v&&!b[k]){ b[k]=v; ch=true; } }; set('sex',u.sex); set('birth',u.birth); set('careLevel',u.kaigodo); set('certTo',u.ninteiEnd); set('insurer',u.hokensha); set('kyotaku',u.kyotaku);
+    if(ch) items.push({residentId:r.id,key:'basic',value:b});
+    if(!r['ふりがな']&&u.kana){ try{ const upd=await api('updateResident',{id:r.id,'ふりがな':hira(u.kana),'入居日':r['入居日']||'','食事形態':r['食事形態']||'','メモ':r['メモ']||''}); r['ふりがな']=(upd&&upd['ふりがな'])||hira(u.kana); }catch(e){} } }
+  if(items.length){ await api('saveProfile',{items}); for(const it of items){ D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===it.residentId&&p['キー']==='basic')); D.profiles.push({'利用者ID':it.residentId,'キー':'basic','値':JSON.stringify(it.value)}); } }
+}catch(e){} }
 // ハウス全体の記録（オンコールなど）を押すと、その日の個人日誌へ
 function hxBind(sel){ $$(sel+' .hx-go').forEach(el=>el.onclick=()=>{ D.hxFocus=el.innerText.replace(/\s+/g,' ').trim(); $('#dMode').value='day'; show('diary'); window.scrollTo(0,0); }); }
 // ----- アロハ花子（ハウス日誌）の過去の記録で、入居者が決まっていないものを振り分ける（途中で切れた文は同じ記録ごとにつなげて表示）-----
