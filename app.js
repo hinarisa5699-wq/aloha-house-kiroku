@@ -285,6 +285,21 @@ $('#saveNote').onclick=async()=>{
 const DKINDS=['排泄','服薬','食事','体調','受診・訪問診療','家族','様子','連絡','その他'];
 const HKINDS=['見学者対応','今後の予定','連絡','行事','設備','モーニングコール','その他']; // ハウス全体の業務日誌（アロハ花子）
 $('#dMode').onchange=()=>{ $('#dRes').classList.toggle('hide',$('#dMode').value!=='month'); renderDiary(); };
+// ===== 業務日誌（1日分を自動でまとめる：予定・ハウス全体の記録・入居者ごとの食事/モーニングコール/排便/個人日誌・LINE。毎日印刷してファイルに綴じる 2026/11/22）=====
+async function gyomuHtml(){ const [list,_]=await Promise.all([api('diaryList',{date:D.date}),Promise.resolve()]); const sortT=(a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''); const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
+  const nm=Object.fromEntries(D.residents.map(r=>[r.id,r])); nm['']={'部屋':'—','氏名':'アロハハウス'};
+  const sch=(D.day.schedules||[]).filter(s=>nm[s['利用者ID']]).sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始'])));
+  const house=list.filter(e=>e['利用者ID']==='').concat(houseExt().map(e=>({'時刻':e['時刻'],'種別':e['種別'],'内容':e['内容'],'記入者':e['記録者'],'出所':e['出所']}))).sort(sortT);
+  const ent=e=>`<div class="gn"><span class="gm">${esc(e['時刻']||'')} ${esc(e['種別']||'')}${e['出所']&&e['出所']!=='手入力'?'〔'+esc(e['出所'])+'〕':''}${e['記入者']&&e['記入者']!=='LINE'?' '+esc(e['記入者']):''}</span> ${esc(e['内容'])}</div>`;
+  const mealTxt=m=>{ const x=mealOf(m[0],m[1]); if(!x) return '未'; if(x['主食']==='注文なし') return 'なし'; if(x['主食']==='欠') return '欠食'; return `${x['主食']}/${x['副食']}${x['汁物']&&x['汁物']!=='なし'?'/'+x['汁物']:''}${x['服薬']==='済'?' 薬✓':x['服薬']==='未'?' 薬未':''}${x['症状']?' '+x['症状']:''}`; };
+  const strip=h=>String(h).replace(/<[^>]+>/g,'');
+  let h=`<div class="gyomu"><div class="ghead"><h2>アロハハウス　業務日誌　${D.date.slice(0,4)}年${dateLabel(D.date)}</h2><table class="gstamp"><tr><th>記入</th><th>確認</th><th>管理者</th></tr><tr><td></td><td></td><td></td></tr></table></div>`;
+  h+=`<h3>今日の予定</h3>`+(sch.length?`<table class="gt"><tr><th style="width:80px">時間</th><th style="width:110px">氏名</th><th>予定</th><th style="width:70px">担当</th></tr>${sch.map(s=>`<tr><td>${esc(s['開始']||'')}${s['終了']?'-'+esc(s['終了']):''}</td><td>${esc(nm[s['利用者ID']]['氏名'])}</td><td>${esc(fmtSch({...s,'開始':'','担当':''}))}</td><td>${esc(s['担当']||'')}</td></tr>`).join('')}</table>`:'<p class="muted">予定なし</p>');
+  h+=`<h3>ハウス全体（見学者対応・今後の予定・LINEの連絡など）</h3>`+(house.length?house.map(ent).join(''):'<p class="muted">記録なし</p>');
+  h+=`<h3>入居者ごとの記録</h3><table class="gt"><tr><th style="width:110px">部屋・氏名</th><th style="width:150px">食事（主/副/汁）</th><th>モーニングコール・排便・個人日誌・LINE</th></tr>`+D.residents.map(r=>{ const es=list.filter(e=>e['利用者ID']===r.id).sort(sortT); const mc=mcOf(r.id); const bw=D.day.notes.filter(n=>n['利用者ID']===r.id&&n['種別']==='排便');
+    const ids=new Set(es.map(e=>e.id)); const notes=D.day.notes.filter(n=>n['利用者ID']===r.id&&!['モーニングコール','排便'].includes(n['種別'])&&!ids.has('n-'+n.id));
+    return `<tr><td>${esc(r['部屋'])}<br><b>${esc(r['氏名'])}</b></td><td style="font-size:9.5pt">朝 ${esc(mealTxt([r.id,'朝食']))}<br>昼 ${esc(mealTxt([r.id,'昼食']))}<br>夕 ${esc(mealTxt([r.id,'夕食']))}</td><td>${mc.length?`<div class="gn"><span class="gm">モーニングコール</span> ${mc.map(x=>esc(x['時刻']+' '+x['内容']+'（'+x['記入者']+'）')).join('、')}</div>`:''}<div class="gn"><span class="gm">排便</span> ${bw.length?bw.map(x=>esc(x['時刻']+' '+x['内容'])).join('、'):esc(strip(bowelBadge(r.id)))}</div>${es.concat(notes).sort(sortT).map(ent).join('')}</td></tr>`; }).join('')+'</table></div>';
+  return h; }
 $('#dRes').onchange=()=>renderDiary();
 $('#dPrint').onclick=()=>{ document.body.classList.add('print-diary'); const off=()=>document.body.classList.remove('print-diary'); window.addEventListener('afterprint',off,{once:true}); setTimeout(()=>window.print(),50); setTimeout(off,60000); };
 function diaryEntry(e,showName){ return `<div class="n" data-did="${e.id}"><div class="m">${e['時刻']||''} ${esc(e['種別']||'')}${showName?'　'+esc(e['氏名']):''}　<span class="muted">${esc(e['出所']||'')}${e['記入者']&&e['記入者']!=='LINE'?' '+esc(e['記入者']):''}</span> <button class="btn danger noprint" data-ddel="${e.id}" style="padding:1px 8px;font-size:11px;float:right">削除</button></div>${esc(e['内容'])}</div>`; }
@@ -293,6 +308,7 @@ async function renderDiary(){
   $('#dRes').innerHTML=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join('');
   out.innerHTML='<div class="muted">読み込み中…</div>';
   try{
+    if(mode==='gyomu'){ out.innerHTML='<div class="card noprint" style="padding:8px 12px">この日の予定・ハウス全体の記録・入居者ごとの食事／モーニングコール／排便・個人日誌・LINEの内容を自動でまとめています。上の「印刷」で毎日印刷してファイルに綴じてください。<button class="btn" id="gAdd" style="margin-left:6px">書き足す（ハウス全体・個人日誌）</button></div><div class="card">'+await gyomuHtml()+'</div>'; $('#gAdd').onclick=()=>{ $('#dMode').value='day'; renderDiary(); }; return; }
     if(mode==='day'){
       const list=await api('diaryList',{date:D.date}); const curStaff=$('#staff').value||LS('hc_staff')||''; const staffOpts='<option value="">（選択）</option>'+D.staff.map(s=>`<option ${s===curStaff?'selected':''}>${esc(s)}</option>`).join(''); const sortT=(a,b)=>(a['時刻']||'').localeCompare(b['時刻']||'');
       out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">アロハハウス　個人日誌　${D.date.slice(0,4)}年${dateLabel(D.date)}</h2>`+[HOUSE_R].concat(D.residents).map(r=>{ const es=list.filter(e=>e['利用者ID']===r.id).sort(sortT); const K=r.id?DKINDS:HKINDS;
