@@ -494,7 +494,7 @@ function bathHtml(b){
 }
 
 // ---------- 画面 ----------
-function fillRes(){ const sel=$('#bRes'); const v=P.rid; sel.innerHTML=D.residents.map(r=>`<option value="${r.id}">${esc(r['部屋'])} ${esc(r['氏名'])}</option>`).join(''); if(v&&D.residents.some(r=>r.id===v)) sel.value=v; P.rid=sel.value; }
+function fillRes(){ const sel=$('#bRes'); const v=P.rid; sel.innerHTML=(D.activeResidents||D.residents).map(r=>`<option value="${r.id}">${esc(r['部屋'])} ${esc(r['氏名'])}</option>`).join(''); if(v&&D.residents.some(r=>r.id===v)) sel.value=v; P.rid=sel.value; }
 function card(id,title,view,btn){ return `<div class="card" id="bc-${id}"><div class="row" style="align-items:center"><h2 style="margin:0;flex:1">${title}</h2>${btn!==false?`<button class="btn" data-edit="${id}" style="flex:none">編集</button>`:''}</div><div class="bview scroll" style="margin-top:6px">${view}</div><div class="bform hide" style="margin-top:8px"></div></div>`; }
 // 通所介護計画書（拡張機能がカイポケから取り込む。キー dayplan）
 function dayplanHtml(dp,forPrint){

@@ -67,7 +67,7 @@ async function boot(){
     return;
   }
   // 前回の内容をまず表示（開き直したときに「読み込み中」で待たせない）。そのあと裏で最新に更新
-  const applyBoot=b=>{ D.residents=b.residents; D.allResidents=b.allResidents; D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); const lr=$('#lineRes'); if(lr){ const cur=lr.value; lr.innerHTML='<option value="">（職員の全体グループ：名前で判定）</option>'+D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); lr.value=cur; } };
+  const applyBoot=b=>{ D._act=b.residents; D.allResidents=b.allResidents; resFilter(); D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); const lr=$('#lineRes'); if(lr){ const cur=lr.value; lr.innerHTML='<option value="">（職員の全体グループ：名前で判定）</option>'+D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); lr.value=cur; } };
   try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=dayCacheGet(D.date); if(cb&&cb.residents){ applyBoot(cb); if(cd){ D.day=cd; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
   const slow=setTimeout(()=>{ if(/読み込み中/.test($('#todayList').textContent)) $('#todayList').innerHTML='<div class="card">読み込みに時間がかかっています。通信状況を確認して、少し待つか<button class="btn" type="button" onclick="location.reload()">再読み込み</button>してください。</div>'; },15000);
   try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); portalKeySync().then(portalFill); if(window._openPanel==='diary'){ window._openPanel=''; $('#dMode').value='day'; show('diary'); } D.day=d; dayCachePut(D.date,d); renderToday(); loadBowel(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
@@ -78,7 +78,9 @@ async function boot(){
 const dayCacheGet=d=>{ try{ const m=JSON.parse(LS('hc_cache_days')||'{}'); return m[d]&&m[d].data||null; }catch(e){ return null; } };
 const dayCachePut=(d,data)=>{ try{ let m=JSON.parse(LS('hc_cache_days')||'{}'); m[d]={t:Date.now(),data}; const ks=Object.keys(m).sort((x,y)=>m[y].t-m[x].t); if(ks.length>45) ks.slice(45).forEach(k=>delete m[k]); LSs('hc_cache_days',JSON.stringify(m)); }catch(e){} LSs('hc_cache_day',JSON.stringify({date:d,data})); };
 let _loadSeq=0;
-async function loadDay(){
+// 入居日より前の日は、その人を一覧に出さない（入居予定の人を先に登録しておける）2026/11/22
+function resFilter(){ const act=D._act||D.residents||[]; D.activeResidents=act; D.residents=act.filter(r=>!r['入居日']||r['入居日']<=D.date); }
+async function loadDay(){ resFilter();
   const seq=++_loadSeq; const want=D.date;
   const c=dayCacheGet(want); if(c){ D.day=c; renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); $('#ttl').textContent+='（更新中…）'; }
   try{ busy(true); const d=await api('day',{date:want}); if(seq!==_loadSeq||want!==D.date) return; D.day=d; dayCachePut(want,d); renderToday(); loadBowel(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); }
@@ -482,7 +484,7 @@ async function renderList(){
 }
 
 // ===== 予定 =====
-function fillSchRes(){ const o=D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); $('#sRes').innerHTML=o+'<option value="">アロハハウス（全員）</option><option value="day">アロハデイ（その日デイに行く方）</option>'; $('#sRes').onchange=()=>{ if($('#sRes').value==='day'){ $('#sKind').value='デイ'; } }; $('#sListRes').innerHTML='<option value="">全員</option>'+o; }
+function fillSchRes(){ const o=(D.activeResidents||D.residents).map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); $('#sRes').innerHTML=o+'<option value="">アロハハウス（全員）</option><option value="day">アロハデイ（その日デイに行く方）</option>'; $('#sRes').onchange=()=>{ if($('#sRes').value==='day'){ $('#sKind').value='デイ'; } }; $('#sListRes').innerHTML='<option value="">全員</option>'+o; }
 (function(){ const s=$('#sDay'); for(let d=1;d<=31;d++) s.innerHTML+=`<option value="${d}">${d}日</option>`; $('#sDate').value=todayStr(); })();
 function updRule(){ const v=$('#sRule').value; $$('.mform label[class*="r-"]').forEach(l=>l.classList.toggle('hide',!l.classList.contains('r-'+v))); }
 $('#sRule').onchange=updRule; updRule();
@@ -687,7 +689,7 @@ function renderResTable(){
   t.oninput=e=>{ const el=e.target; if(!el.dataset.k) return; editRes[+el.dataset.i][el.dataset.k]=el.type==='checkbox'?(el.checked?'1':'0'):el.value; };
 }
 $('#resAdd').onclick=()=>{ D.allResidents=editRes.concat([{id:'',氏名:'',ふりがな:'',部屋:'',食事形態:'',在籍:'1',メモ:''}]); renderResTable(); };
-$('#resSave').onclick=async()=>{ const list=editRes.filter(r=>r['氏名'].trim()); try{ busy(true); const saved=await api('saveResidents',{residents:list}); D.allResidents=saved; D.residents=saved.filter(r=>r['在籍']!=='0'); renderResTable(); toast('保存しました'); renderToday(); }catch(e){toast('失敗: '+e.message);} finally{busy(false);} };
+$('#resSave').onclick=async()=>{ const list=editRes.filter(r=>r['氏名'].trim()); try{ busy(true); const saved=await api('saveResidents',{residents:list}); D.allResidents=saved; D._act=saved.filter(r=>r['在籍']!=='0'); resFilter(); renderResTable(); toast('保存しました'); renderToday(); }catch(e){toast('失敗: '+e.message);} finally{busy(false);} };
 async function mergeStaff(add){
   if(!add.length) return 0;
   D.staff=D.staff.concat(add); await api('saveStaff',{names:D.staff}); $('#staffText').value=D.staff.join('\n'); renderStaffSel(); return add.length;
@@ -717,7 +719,7 @@ $('#resCsv').onchange=async e=>{
   D.allResidents=editRes; renderResTable();
   const st=$('#resCsvStatus'); st.textContent='保存中…';
   try{ if(items.length){ await api('saveProfile',{items}); for(const it of items){ D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===it.residentId&&p['キー']==='basic')); D.profiles.push({'利用者ID':it.residentId,'キー':'basic','値':JSON.stringify(it.value)}); } }
-    if(added||editRes.some(r=>r['ふりがな'])){ const saved=await api('saveResidents',{residents:editRes.filter(r=>r['氏名'].trim())}); D.allResidents=saved; D.residents=saved.filter(r=>r['在籍']!=='0'); editRes=saved.map(r=>({...r})); renderResTable(); renderToday(); }
+    if(added||editRes.some(r=>r['ふりがな'])){ const saved=await api('saveResidents',{residents:editRes.filter(r=>r['氏名'].trim())}); D.allResidents=saved; D._act=saved.filter(r=>r['在籍']!=='0'); resFilter(); editRes=saved.map(r=>({...r})); renderResTable(); renderToday(); }
     st.textContent=`✓ 読み込みました：新規 ${added}名、既存の方の情報を補完 ${upd}名（ふりがな・性別・生年月日）。読み飛ばし ${cands.length-(useOnlyHouse?house.length:cands.length)}名`; toast('利用者CSVを取り込みました'); }
   catch(err){ st.textContent='⚠ 保存できませんでした: '+err.message; }
   e.target.value='';
