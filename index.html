@@ -242,7 +242,7 @@ table.kv th{background:var(--head-bg)}
 @media print{ body.print-diary .gyomu h2{font-size:15pt} body.print-diary .gt{font-size:9.5pt} body.print-diary .gn{font-size:9.5pt} body.print-diary .gt tr{page-break-inside:avoid} body.print-diary .gt th{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact} }
 
 /* 閲覧のみ 2026/11/22 */
-body.ro #saveMeal,body.ro #delMeal,body.ro #saveNote,body.ro #saveBowel,body.ro .mcbtn,body.ro [data-dadd],body.ro [data-kk],body.ro #infoEdit,body.ro #gAdd,body.ro .lockmsg,body.ro .staffbox,body.ro [data-del],body.ro [data-ddel],body.ro [data-bdel]{display:none!important}
+body.ro #ocBtn,body.ro #saveMeal,body.ro #delMeal,body.ro #saveNote,body.ro #saveBowel,body.ro .mcbtn,body.ro [data-dadd],body.ro [data-kk],body.ro #infoEdit,body.ro #gAdd,body.ro .lockmsg,body.ro .staffbox,body.ro [data-del],body.ro [data-ddel],body.ro [data-bdel]{display:none!important}
 body.ro nav.tabs button[data-p="set"]{display:none}
 body.ro #p-entry.nostaff .lockable{opacity:1;pointer-events:auto}
 body.ro::before{content:"閲覧のみ（編集はできません）";display:block;position:sticky;top:0;z-index:50;background:#555;color:#fff;text-align:center;font-weight:700;padding:4px;font-size:13px}
@@ -269,7 +269,7 @@ body.ro::before{content:"閲覧のみ（編集はできません）";display:blo
 <section class="panel on" id="p-today">
   <div class="muted noprint" style="margin:2px 0 8px">名前を押すと入力画面。☎でモーニングコールを記録。数字は<b>食べた量</b>（主食/副食/汁物、10=全量）。朝/昼/夕の色：<span class="chip done">10/8</span>記入済 <span class="chip low">5/2</span>摂取半分以下 <span class="chip sym">むせ</span>症状あり <span class="chip">未</span>未記入</div>
   <div id="impWarn" class="hide"></div>
-  <div class="card" id="todaySchCard" style="padding:10px 12px"><h2 style="margin:0 0 6px;font-size:14px">今日の予定（全員）</h2><div id="todaySch" class="muted">読み込み中…</div></div>
+  <div class="card" id="todaySchCard" style="padding:10px 12px"><div class="row" style="align-items:center;margin:0 0 6px"><h2 style="margin:0;font-size:14px;flex:1">今日の予定（全員）</h2><button class="btn pri" id="ocBtn" style="flex:none;padding:6px 12px">📞 オンコール報告</button></div><div id="todaySch" class="muted">読み込み中…</div></div>
   <div id="todayList"><div class="muted">読み込み中…</div></div>
 </section>
 
@@ -386,7 +386,7 @@ body.ro::before{content:"閲覧のみ（編集はできません）";display:blo
     <div class="row" style="flex-wrap:wrap;align-items:center">
       <select id="dMode" style="flex:1 1 200px"><option value="gyomu">業務日誌（この日のまとめ・毎日印刷）</option><option value="day">この日の全員（個人日誌の入力）</option><option value="month">1人の1か月</option></select>
       <select id="dRes" class="hide" style="flex:1 1 160px"></select>
-      <button class="btn" id="dPrint" style="flex:none">印刷</button>
+      <button class="btn" id="dPrint" style="flex:none">印刷</button><button class="btn" id="ocCsvBtn" style="flex:none" title="この月のオンコール当番（担当・件数・内容）を給与計算アプリ用に出します">オンコールCSV（給与計算用）</button>
     </div>
     <div class="muted" style="margin-top:4px">職員LINEを取り込むと、投稿がAIで入居者ごとの日誌文に整えられてここに入ります（出所：LINE）。手で書き足すこともできます。日付は上の「‹ ›」で動かします。</div>
   </div>
@@ -496,10 +496,10 @@ body.ro::before{content:"閲覧のみ（編集はできません）";display:blo
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mv20261122v"></script>
-<script src="kiroku.js?v=mv20261122v"></script>
-<script src="app.js?v=mv20261122v"></script>
-<script src="base.js?v=mv20261122v"></script>
+<script src="parsers.js?v=mv20261122w"></script>
+<script src="kiroku.js?v=mv20261122w"></script>
+<script src="app.js?v=mv20261122w"></script>
+<script src="base.js?v=mv20261122w"></script>
 <script src="money.js?v=r8118"></script>
 </body>
 </html>

@@ -237,6 +237,67 @@ async function portalFill(){ try{ if(LS('hc_pfill')===todayStr()) return; const 
     if(!r['ふりがな']&&u.kana){ try{ const upd=await api('updateResident',{id:r.id,'ふりがな':hira(u.kana),'入居日':r['入居日']||'','食事形態':r['食事形態']||'','メモ':r['メモ']||''}); r['ふりがな']=(upd&&upd['ふりがな'])||hira(u.kana); }catch(e){} } }
   if(items.length){ await api('saveProfile',{items}); for(const it of items){ D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===it.residentId&&p['キー']==='basic')); D.profiles.push({'利用者ID':it.residentId,'キー':'basic','値':JSON.stringify(it.value)}); } }
 }catch(e){} }
+// ===== オンコール報告（当番が入力 → 個人日誌・業務日誌に保存 → ポータルからハウス全員に知らせる）2026/11/22 =====
+// アロハ花子（カイポケのハウス日誌）をやめたので、オンコールの記録はここで入れる。給与計算用のCSVもここから出す。
+const ymdOf=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const addDay=(s,n)=>{ const d=new Date(s+'T00:00:00'); d.setDate(d.getDate()+n); return ymdOf(d); };
+const wdJ=s=>'日月火水木金土'[new Date(s+'T00:00:00').getDay()];
+const mdJ=s=>`${Number(s.slice(5,7))}/${Number(s.slice(8,10))}（${wdJ(s)}）`;
+const CIRC='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮';
+// 呼び出しの日付：12時以降は当番日、12時より前は当番日の翌日（夜中〜朝の呼び出し）
+const ocCallDate=(duty,t)=>(t&&t>='12:00')?duty:addDay(duty,1);
+function ocText(duty,staff,rows){ const nm=id=>{ const r=D.allResidents.find(x=>x.id===id); return r?r['氏名'].replace(/[\s　]+/g,'')+'様':'（入居者以外）'; };
+  return `【オンコール報告】${mdJ(duty)} 夜の当番：${staff||'（未選択）'}\n`+(rows.length?`オンコール${rows.length}件\n`+rows.map((r,i)=>`${CIRC[i]||'・'}${r.t?r.t+' ':''}${nm(r.rid)}：${r.text}`).join('\n'):'オンコールなし'); }
+function openOC(){ staffExpire(); let ov=$('#ocOv'); if(!ov){ ov=document.createElement('div'); ov.id='ocOv'; ov.className='ov'; document.body.appendChild(ov); }
+  const now=new Date(); const duty=now.getHours()<12?addDay(ymdOf(now),-1):ymdOf(now); const cur=LS('hc_staff')||'';
+  const resOpts='<option value="">（入居者を選ぶ）</option>'+D.residents.map(r=>`<option value="${r.id}">${esc(r['部屋'])} ${esc(r['氏名'])}</option>`).join('');
+  ov.innerHTML=`<div class="ovbox"><h2 style="margin:0 0 6px">📞 オンコール報告</h2><div class="muted" style="margin-bottom:6px">当番明けに当番の人が入力します。保存すると個人日誌・業務日誌に入り、ポータルからアロハハウスの全員にメッセージが届きます。</div>
+   <div class="field"><div class="lb"><span><b>① 当番の日</b>（夜の当番に入った日）</span></div><input type="date" id="ocDate" value="${duty}"></div>
+   <div class="field"><div class="lb"><span><b>② 当番の人</b></span></div><select id="ocStaff"><option value="">（選択）</option>${D.staff.map(s=>`<option ${s===cur?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
+   <div id="ocBody"><div class="field"><div class="lb"><span><b>③ 呼び出し</b></span></div><div class="seg" id="ocHas"><button type="button" data-v="0" class="on">なし（0件）</button><button type="button" data-v="1">あり</button></div></div>
+   <div id="ocRows"></div><button class="btn hide" id="ocAdd" type="button" style="margin-top:4px">＋ 呼び出しを足す</button>
+   <div class="field" style="margin-top:8px"><div class="lb"><span><b>送られるメッセージ</b></span></div><pre id="ocPrev" style="white-space:pre-wrap;background:#fff7e6;border-radius:8px;padding:8px;margin:0;font:inherit;font-size:13px"></pre></div>
+   <div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn" id="ocCancel">やめる</button><button class="btn pri big" id="ocSend">保存して全員に知らせる</button></div><div id="ocMsg" style="color:#c0392b;font-weight:700;min-height:1.2em"></div></div></div>`;
+  ov.classList.remove('hide');
+  const rowHtml=()=>`<div class="card ocrow" style="padding:8px;margin:6px 0"><div class="row" style="gap:6px;flex-wrap:wrap"><input type="time" data-k="t" style="flex:none;width:110px"><select data-k="rid" style="flex:1 1 160px">${resOpts}</select><button class="btn" type="button" data-k="del" style="flex:none;padding:2px 10px">消す</button></div><textarea data-k="text" placeholder="呼ばれた理由・対応・その後の様子" style="min-height:60px;margin-top:4px"></textarea></div>`;
+  const rows=()=>$$('#ocRows .ocrow').map(c=>({t:c.querySelector('[data-k="t"]').value,rid:c.querySelector('[data-k="rid"]').value,text:c.querySelector('[data-k="text"]').value.trim()}));
+  const upd=()=>{ $('#ocPrev').textContent=ocText($('#ocDate').value,$('#ocStaff').value,$('#ocHas button.on').dataset.v==='1'?rows():[]); $('#ocBody').classList.toggle('locked',!$('#ocStaff').value); };
+  const addRow=()=>{ $('#ocRows').insertAdjacentHTML('beforeend',rowHtml()); const c=$$('#ocRows .ocrow').pop(); c.querySelector('[data-k="del"]').onclick=()=>{ c.remove(); upd(); }; c.oninput=upd; c.onchange=upd; upd(); };
+  $('#ocHas').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; $$('#ocHas button').forEach(x=>x.classList.toggle('on',x===b)); const has=b.dataset.v==='1'; $('#ocAdd').classList.toggle('hide',!has); $('#ocRows').classList.toggle('hide',!has); if(has&&!$$('#ocRows .ocrow').length) addRow(); upd(); };
+  $('#ocAdd').onclick=addRow; $('#ocDate').onchange=upd; $('#ocStaff').onchange=()=>{ LSs('hc_staff',$('#ocStaff').value); LSs('hc_staff_at',String(Date.now())); upd(); };
+  $('#ocCancel').onclick=()=>ov.classList.add('hide'); upd();
+  $('#ocSend').onclick=async()=>{ const duty=$('#ocDate').value, staff=$('#ocStaff').value; const rs=$('#ocHas button.on').dataset.v==='1'?rows():[]; const M=t=>$('#ocMsg').textContent=t;
+    if(!duty) return M('当番の日を入れてください'); if(!staff) return M('当番の人を選んでください');
+    for(const [i,r] of rs.entries()){ if(!r.t) return M(`${i+1}件目の時刻を入れてください`); if(!r.rid) return M(`${i+1}件目の入居者を選んでください`); if(!r.text) return M(`${i+1}件目の内容を書いてください`); }
+    const b=$('#ocSend'); b.disabled=true; b.textContent='保存中…'; const text=ocText(duty,staff,rs);
+    try{
+      for(const r of rs){ const res=D.allResidents.find(x=>x.id===r.rid); const cd=ocCallDate(duty,r.t);
+        await api('saveDiary',{record:{id:`oc-${cd.replace(/-/g,'')}${r.t.replace(':','')}-${r.rid}`,'日付':cd,'時刻':r.t,'利用者ID':r.rid,'氏名':res['氏名'],'種別':'オンコール','内容':r.text,'記入者':staff,'出所':'オンコール報告'}}); }
+      // 当番1日に1件のまとめ（業務日誌・給与計算のCSVに使う。入れ直したら上書き）
+      await api('saveDiary',{record:{id:'ocd-'+duty,'日付':duty,'時刻':'','利用者ID':'','氏名':HOUSE_R['氏名'],'種別':'オンコール当番','内容':`オンコール呼び出し${rs.length}件【担当:${staff}】`+(rs.length?'\n'+text.split('\n').slice(2).join('\n'):''),'記入者':staff,'出所':'オンコール報告'}});
+      LSs('hc_staff_at',String(Date.now()));
+    }catch(e){ b.disabled=false; b.textContent='保存して全員に知らせる'; return M('保存できませんでした: '+e.message); }
+    try{ await portalApi('oncallReport',{date:duty,staff,count:rs.length,text}); ov.classList.add('hide'); toast('保存して、アロハハウスの全員に知らせました'); }
+    catch(e){ M('日誌には保存しました。ポータルへの送信はできませんでした: '+e.message); b.textContent='もう一度知らせる'; b.disabled=false; b.onclick=async()=>{ try{ await portalApi('oncallReport',{date:duty,staff,count:rs.length,text}); ov.classList.add('hide'); toast('アロハハウスの全員に知らせました'); }catch(er){ M('送れませんでした: '+er.message); } }; }
+    if($('#p-diary').classList.contains('on')) renderDiary(); };
+}
+// 給与計算アプリ用：オンコール当番のCSV（当番日・担当・件数・内容）。当番明けの記録の前日が当番日
+async function ocCsv(ym){ const [y,m]=ym.split('-').map(Number); const nx=`${m===12?y+1:y}-${pad(m===12?1:m+1)}`;
+  const [m1,m2,d1,d2]=await Promise.all([api('month',{ym}),api('month',{ym:nx}),api('diaryList',{ym}),api('diaryList',{ym:nx})]);
+  const ext=[...(m1.ext||[]),...(m2.ext||[])], dl=[...d1,...d2]; const nm=Object.fromEntries(D.allResidents.map(r=>[r.id,r['氏名'].replace(/[\s　]+/g,'')]));
+  const byDuty={};
+  // ① オンコール報告（この画面から入れたもの）が正
+  dl.filter(e=>String(e.id||'').startsWith('ocd-')).forEach(e=>{ const mm=String(e['内容']).match(/オンコール呼び出し(\d+)件【担当:([^】]*)】/); byDuty[e['日付']]={duty:e['日付'],staff:mm?mm[2]:e['記入者'],count:mm?Number(mm[1]):0,src:'オンコール報告',calls:[]}; });
+  // ② アロハ花子（カイポケのハウス日誌）の「オンコール呼び出し○件【担当:○○】」（当番明けの朝の記録 → 前日が当番日）
+  ext.filter(e=>e['利用者ID']===''&&/オンコール呼び出し/.test(e['内容']||'')).forEach(e=>{ const t=String(e['内容']); const am=t.match(/[【[]([^】\]]*担当[^】\]]*)(?:[】\]]|$)/); if(!am) return; const staff=am[1].replace(/担当/g,'').replace(/[:：\s　]/g,''); if(!staff) return;
+    const cm=t.match(/オンコール呼び出し\s*([0-9０-９]*)\s*件/); const cnt=Number(String(cm&&cm[1]||'0').replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xfee0))); const duty=addDay(e['日付'],-1); if(byDuty[duty]) return; byDuty[duty]={duty,staff,count:cnt,src:'アロハ花子',calls:[]}; });
+  // ③ 内容：入居者の個人日誌のオンコール記録（12時以降はその日、12時より前は前日の当番）
+  dl.filter(e=>e['種別']==='オンコール'&&e['利用者ID']).forEach(e=>{ const t=e['時刻']||''; const duty=(!t||t>='12:00')?e['日付']:addDay(e['日付'],-1); (byDuty[duty]||(byDuty[duty]={duty,staff:'',count:0,src:'個人日誌のみ',calls:[]})).calls.push(`${t?t+' ':''}${nm[e['利用者ID']]||''}様：${String(e['内容']).replace(/\s+/g,' ')}`); });
+  const rows=Object.values(byDuty).filter(x=>x.duty.startsWith(ym)).sort((a,b)=>a.duty.localeCompare(b.duty));
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const csv='﻿'+['当番日,曜日,担当,呼び出し件数,内容,もと'].concat(rows.map(x=>[x.duty,wdJ(x.duty),x.staff,Math.max(x.count,x.calls.length),x.calls.join(' ／ '),x.src].map(q).join(','))).join('\r\n')+'\r\n';
+  return {csv,rows}; }
+async function ocCsvDownload(){ const ym=(D.date||ymdOf(new Date())).slice(0,7); busy(true); try{ const {csv,rows}=await ocCsv(ym); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`オンコール当番_${ym}.csv`; document.body.appendChild(a); a.click(); a.remove(); const noStaff=rows.filter(x=>!x.staff).length; toast(`${ym} のオンコール当番 ${rows.length}日分を出しました`+(noStaff?`（担当が空の日 ${noStaff}日）`:'')); }catch(e){ toast('出せませんでした: '+e.message); } finally{ busy(false); } }
 // ハウス全体の記録（オンコールなど）を押すと、その日の個人日誌へ
 function hxBind(sel){ $$(sel+' .hx-write').forEach(b=>b.onclick=async e=>{ e.stopPropagation(); const x=houseExt().find(v=>String(v.id||'')===b.dataset.hx); if(!x) return; b.disabled=true; let l=[]; try{ l=await hxLinked(x); if(!l.length&&hxIsOC(x)&&!RO()&&await hxPickLine(x)) l=await hxLinked(x); }catch(er){} b.disabled=false; if(l.length===1) return hxJump(l[0]); if(l.length) return hxPick(x,l); openHX(x); }); }
 // ハウス全体の記録に対応する個人日誌（この記録から書いたもの＋オンコールは前日昼〜当日のオンコール記録）2026/11/22
@@ -788,3 +849,5 @@ document.addEventListener('dragleave',e=>{ const d=e.target.closest&&e.target.cl
 document.addEventListener('drop',e=>{ const d=e.target.closest&&e.target.closest('.drop'); if(!d) return; e.preventDefault(); d.classList.remove('over'); const inp=d.querySelector('input[type=file]'); if(!inp||!e.dataTransfer.files.length) return; const dt=new DataTransfer(); for(const f of e.dataTransfer.files){ dt.items.add(f); if(!inp.multiple) break; } inp.files=dt.files; inp.dispatchEvent(new Event('change',{bubbles:true})); });
 boot();
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+
+if($('#ocBtn')) $('#ocBtn').onclick=openOC; if($('#ocCsvBtn')) $('#ocCsvBtn').onclick=ocCsvDownload;
