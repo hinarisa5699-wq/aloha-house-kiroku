@@ -218,19 +218,29 @@ async function openKK(rid){ staffExpire(); const r=rid?D.residents.find(x=>x.id=
     catch(e){ $('#kkMsg').textContent='送れませんでした: '+e.message; } finally{ b.disabled=false; b.textContent='知らせる'; } }; }
 // ハウス全体の記録（オンコールなど）を押すと、その日の個人日誌へ
 function hxBind(sel){ $$(sel+' .hx-go').forEach(el=>el.onclick=()=>{ D.hxFocus=el.innerText.replace(/\s+/g,' ').trim(); $('#dMode').value='day'; show('diary'); window.scrollTo(0,0); }); }
-// ----- アロハ花子（ハウス日誌）の過去の記録で、入居者が決まっていないものを個人日誌へ振り分ける -----
+// ----- アロハ花子（ハウス日誌）の過去の記録で、入居者が決まっていないものを振り分ける（途中で切れた文は同じ記録ごとにつなげて表示）-----
 async function renderSort(out){ out.innerHTML='<div class="muted">読み込み中…</div>'; const all=[]; const n=new Date(); for(let i=3;i>=0;i--){ const d=new Date(n.getFullYear(),n.getMonth()-i,1); const ym=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; try{ const m=await api('month',{ym}); all.push(...(m.ext||[]).filter(e=>e['出所']==='ハウス日誌')); }catch(e){} }
+  const keep=new Set(profOf('','hx_keep')||[]);
   const R=D.residents; const sur=r=>String(r['氏名']).split(/[\s　]/)[0]; const alt={'安藝':['安藝','安芸']};
-  const guess=e=>{ const t=String(e['内容']); const h=R.filter(r=>(alt[sur(r)]||[sur(r)]).some(s=>t.includes(s))); if(h.length===1) return h[0].id; const ids=[...new Set(all.filter(x=>x['利用者ID']&&x['日付']===e['日付']&&x['時刻']===e['時刻']&&(x['記録者']||'')===(e['記録者']||'')).map(x=>x['利用者ID']))]; return ids.length===1?ids[0]:''; };
-  const un=all.filter(e=>!e['利用者ID']&&e['種別']!=='オンコール').sort((a,b)=>(a['日付']+a['時刻']).localeCompare(b['日付']+b['時刻']));
-  if(!un.length){ out.innerHTML='<div class="card">振り分けが必要な記録はありません。</div>'; return; }
-  const opts=id=>'<option value="">（全体のまま／わからない）</option>'+R.map(r=>`<option value="${r.id}" ${r.id===id?'selected':''}>${esc(r['部屋'])} ${esc(r['氏名'])}</option>`).join('');
-  out.innerHTML=`<div class="card"><h2 style="margin:0 0 6px">アロハ花子（ハウス日誌）の記録の振り分け</h2><div class="muted">入居者が決まっていない ${un.length}件です。入居者を選んで「移す」を押すと個人日誌に入り、ハウス全体の記録から消えます。最初から選ばれているのは自動で見つけた候補です（確かめてから移してください）。デイの利用者（関根様・小野様など）や途中で切れた文は、全体のままでかまいません。</div><button class="btn pri" id="srtAll" style="margin-top:8px">入居者を選んだものをまとめて移す</button></div>`+
-    un.map(e=>`<div class="card" data-srt="${esc(e.id)}" style="padding:8px 12px"><div class="muted">${esc(e['日付'])} ${esc(e['時刻']||'')} ${esc(e['種別']||'')} ${esc(e['記録者']||'')}</div><div style="margin:4px 0">${esc(e['内容'])}</div><div class="row"><select data-k="r">${opts(guess(e))}</select><button class="btn" data-go style="flex:none">移す</button></div></div>`).join('');
-  const move=async card=>{ const e=un.find(x=>x.id===card.dataset.srt); const rid=card.querySelector('[data-k="r"]').value; if(!e||!rid) return false; const r=R.find(x=>x.id===rid);
-    await api('saveDiary',{record:{id:'hx-'+e.id,'日付':e['日付'],'時刻':e['時刻']||'','利用者ID':rid,'氏名':r['氏名'],'種別':'様子','内容':e['内容'],'記入者':e['記録者']||'','出所':'ハウス日誌'}}); await api('deleteExt',{id:e.id}); card.remove(); return true; };
-  $$('#diaryOut [data-go]').forEach(b=>b.onclick=async()=>{ const c=b.closest('[data-srt]'); if(!c.querySelector('[data-k="r"]').value) return toast('入居者を選んでください'); b.disabled=true; try{ await move(c); toast('移しました'); }catch(e){ toast('失敗: '+e.message); b.disabled=false; } });
-  $('#srtAll').onclick=async()=>{ const cs=$$('#diaryOut [data-srt]').filter(c=>c.querySelector('[data-k="r"]').value); if(!cs.length) return toast('入居者を選んだものがありません'); if(!confirm(`${cs.length}件を個人日誌へ移しますか？`)) return; let k=0; busy(true); for(const c of cs){ try{ if(await move(c)) k++; }catch(e){} } busy(false); toast(`${k}件を移しました`); loadDay(); };
+  // 同じ日・時刻・記録者の切れた文を1つにまとめる
+  const groups=[]; const gm={}; all.filter(e=>!e['利用者ID']&&e['種別']!=='オンコール'&&!keep.has(e.id)).forEach(e=>{ const k=e['日付']+'|'+(e['時刻']||'')+'|'+(e['記録者']||''); if(!gm[k]){ gm[k]={k,e,ids:[],texts:[]}; groups.push(gm[k]); } gm[k].ids.push(e.id); gm[k].texts.push(String(e['内容']||'')); });
+  groups.forEach(g=>{ g.text=g.texts.join(''); const sib=all.filter(x=>x['日付']+'|'+(x['時刻']||'')+'|'+(x['記録者']||'')===g.k); g.ctx=sib.map(x=>x['利用者ID']?esc(x['内容']||''):`<b style="background:#fff3c4">${esc(x['内容']||'')}</b>`).join(''); g.hasCtx=sib.some(x=>x['利用者ID']); }); // 同じ記録のうち入居者が決まっている部分も前後の文として見せる
+  groups.sort((a,b)=>(a.e['日付']+(a.e['時刻']||'')).localeCompare(b.e['日付']+(b.e['時刻']||'')));
+  const guess=g=>{ const t=g.text; const h=R.filter(r=>(alt[sur(r)]||[sur(r)]).some(s=>t.includes(s))); if(h.length===1) return {v:h[0].id};
+    const ids=[...new Set(all.filter(x=>x['利用者ID']&&x['日付']===g.e['日付']&&x['時刻']===g.e['時刻']&&(x['記録者']||'')===(g.e['記録者']||'')).map(x=>x['利用者ID']))]; if(ids.length===1) return {v:ids[0]};
+    const m=t.match(/([一-龥ぁ-んァ-ヶ]{1,4})(様|さん)/); if(m&&!/娘|息子|奥|旦那|ご家族|本人|御本人|皆|職員|ヘルパー|看護師|先生/.test(m[1])) return {v:'day',name:m[1]}; return {v:''}; };
+  if(!groups.length){ out.innerHTML='<div class="card">振り分けが必要な記録はありません。</div>'; return; }
+  const opts=g=>{ const x=guess(g); return `<option value="">（選んでください）</option>${R.map(r=>`<option value="${r.id}" ${r.id===x.v?'selected':''}>${esc(r['部屋'])} ${esc(r['氏名'])}（入居者の個人日誌へ）</option>`).join('')}<option value="day" ${x.v==='day'?'selected':''}>デイの利用者（ハウス外）の記録へ</option><option value="keep">ハウス全体の記録として残す</option>`; };
+  out.innerHTML=`<div class="card"><h2 style="margin:0 0 6px">アロハ花子（ハウス日誌）の記録の振り分け</h2><div class="muted">入居者が決まっていない記録 ${groups.length}件です（途中で切れていた文は、同じ記録ごとにつなげました）。行き先を選んで「移す」を押してください。<br>・入居者 → その人の個人日誌へ　・デイの利用者（小野様・関根様など、ハウスに住んでいない方）→「デイ利用者の記録」へ（名前を入れる）　・どれでもない → ハウス全体の記録として残す<br>最初から選ばれているのは自動で見つけた候補です。</div><button class="btn pri" id="srtAll" style="margin-top:8px">行き先を選んだものをまとめて移す</button></div>`+
+    groups.map((g,i)=>{ const x=guess(g); return `<div class="card" data-srt="${i}" style="padding:8px 12px"><div class="muted">${esc(g.e['日付'])} ${esc(g.e['時刻']||'')} ${esc(g.e['記録者']||'')}${g.ids.length>1?`（${g.ids.length}つに切れていた文をつなげました）`:''}</div><div style="margin:4px 0">${g.hasCtx?`<span class="muted" style="font-size:12px">元の記録全体（黄色が振り分けが必要な部分）：</span><br>${g.ctx}`:esc(g.text)}</div><div class="row" style="flex-wrap:wrap"><select data-k="r" style="flex:1 1 240px">${opts(g)}</select><input data-k="nm" placeholder="デイ利用者の名前（例：小野）" value="${esc(x.name||'')}" class="${x.v==='day'?'':'hide'}" style="flex:1 1 160px"><button class="btn" data-go style="flex:none">移す</button></div></div>`; }).join('');
+  $$('#diaryOut [data-srt] [data-k="r"]').forEach(sel=>sel.onchange=()=>sel.parentNode.querySelector('[data-k="nm"]').classList.toggle('hide',sel.value!=='day'));
+  const move=async card=>{ const g=groups[+card.dataset.srt]; const v=card.querySelector('[data-k="r"]').value; if(!g||!v) return false;
+    if(v==='keep'){ const k=[...keep,...g.ids]; await api('saveProfile',{residentId:'',key:'hx_keep',value:k}); g.ids.forEach(id=>keep.add(id)); D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===''&&p['キー']==='hx_keep')); D.profiles.push({'利用者ID':'','キー':'hx_keep','値':JSON.stringify(k)}); card.remove(); return true; }
+    let rid,name; if(v==='day'){ name=card.querySelector('[data-k="nm"]').value.trim(); if(!name){ toast('デイ利用者の名前を入れてください'); return false; } rid='day:'+name; } else { const r=R.find(x=>x.id===v); rid=r.id; name=r['氏名']; }
+    await api('saveDiary',{record:{id:'hx-'+g.ids[0],'日付':g.e['日付'],'時刻':g.e['時刻']||'','利用者ID':rid,'氏名':name,'種別':v==='day'?'デイ利用者':'様子','内容':g.text,'記入者':g.e['記録者']||'','出所':'ハウス日誌'}});
+    for(const id of g.ids) await api('deleteExt',{id}); card.remove(); return true; };
+  $$('#diaryOut [data-go]').forEach(b=>b.onclick=async()=>{ const c=b.closest('[data-srt]'); if(!c.querySelector('[data-k="r"]').value) return toast('行き先を選んでください'); b.disabled=true; try{ if(await move(c)) toast('移しました'); else b.disabled=false; }catch(e){ toast('失敗: '+e.message); b.disabled=false; } });
+  $('#srtAll').onclick=async()=>{ const cs=$$('#diaryOut [data-srt]').filter(c=>c.querySelector('[data-k="r"]').value); if(!cs.length) return toast('行き先を選んだものがありません'); if(!confirm(`${cs.length}件を移しますか？`)) return; let k=0; busy(true); for(const c of cs){ try{ if(await move(c)) k++; }catch(e){} } busy(false); toast(`${k}件を移しました`); loadDay(); };
 }
 // ----- 排便（あり／なし。なしは何日目かを出す）-----
 const BOWEL={}; // ym -> {t, notes}
