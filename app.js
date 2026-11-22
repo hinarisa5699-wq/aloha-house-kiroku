@@ -243,10 +243,10 @@ function hxBind(sel){ $$(sel+' .hx-write').forEach(b=>b.onclick=async e=>{ e.sto
 async function hxLinked(x){ const d=x['日付']||D.date; const pd=new Date(d+'T00:00:00'); pd.setDate(pd.getDate()-1); const prev=`${pd.getFullYear()}-${pad(pd.getMonth()+1)}-${pad(pd.getDate())}`; const oc=hxIsOC(x);
   const [a,b]=await Promise.all([api('diaryList',{date:d}),oc?api('diaryList',{date:prev}):Promise.resolve([])]);
   const mine=e=>String(e.id||'').startsWith('hxd-'+x.id+'-'); const ocOk=e=>oc&&e['種別']==='オンコール'&&e['利用者ID'];
-  return [...b.filter(e=>mine(e)||(ocOk(e)&&(e['時刻']||'')>='12:00')),...a.filter(e=>mine(e)||ocOk(e))].sort((p,q)=>((p['日付']||'')+(p['時刻']||'')).localeCompare((q['日付']||'')+(q['時刻']||''))); }
+  return [...b.filter(e=>mine(e)||(ocOk(e)&&(!e['時刻']||e['時刻']>='12:00'))),...a.filter(e=>mine(e)||ocOk(e))].sort((p,q)=>((p['日付']||'')+(p['時刻']||'')).localeCompare((q['日付']||'')+(q['時刻']||''))); }
 // 個人日誌にまだないとき：LINEで入居者ごとに来ているオンコールの詳細（前日昼〜当日）を個人日誌に書き写す 2026/11/22
 async function hxPickLine(x){ const d=x['日付']||D.date; const pd=new Date(d+'T00:00:00'); pd.setDate(pd.getDate()-1); const prev=`${pd.getFullYear()}-${pad(pd.getMonth()+1)}-${pad(pd.getDate())}`;
-  let ext=(D.day&&D.day.ext||[]).slice(); if(d!==D.date){ try{ ext=(await api('day',{date:d})).ext||[]; }catch(e){ ext=[]; } } try{ ext=ext.concat(((await api('day',{date:prev})).ext||[]).filter(e=>(e['時刻']||'')>='12:00')); }catch(e){}
+  let ext=(D.day&&D.day.ext||[]).slice(); if(d!==D.date){ try{ ext=(await api('day',{date:d})).ext||[]; }catch(e){ ext=[]; } } try{ ext=ext.concat(((await api('day',{date:prev})).ext||[]).filter(e=>!e['時刻']||e['時刻']>='12:00')); }catch(e){}
   const seen=new Set(); const src=ext.filter(e=>e['利用者ID']&&e['種別']==='オンコール'&&/LINE/.test(e['出所']||'')&&e['内容']).filter(e=>{ const k=e['利用者ID']+'|'+e['内容']; if(seen.has(k)) return false; seen.add(k); return true; });
   const tanto=(String(x['内容']).match(/担当[:：\s]*([^\s】]+)/)||[])[1]||''; const staff=D.staff.find(v=>tanto&&v.startsWith(tanto))||tanto||'LINE'; let k=0;
   for(const e of src){ const r=D.allResidents.find(v=>v.id===e['利用者ID']); if(!r) continue; try{ await api('saveDiary',{record:{id:'lx-'+e.id,'日付':e['日付']||d,'時刻':e['時刻']||'','利用者ID':r.id,'氏名':r['氏名'],'種別':'オンコール','内容':String(e['内容'])+(e['時刻']?'':'（時刻はLINEに記載なし）'),'記入者':staff,'出所':'LINE'}}); k++; }catch(er){} }
