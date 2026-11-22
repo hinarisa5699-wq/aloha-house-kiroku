@@ -851,3 +851,9 @@ boot();
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 
 if($('#ocBtn')) $('#ocBtn').onclick=openOC; if($('#ocCsvBtn')) $('#ocCsvBtn').onclick=ocCsvDownload;
+// 新しい版が出たら知らせる（開きっぱなしの端末が古い画面のまま動かないように）2026/11/22
+(function(){ const mine=((document.querySelector('script[src*="app.js?v="]')||{}).src||'').split('v=')[1]||'';
+  const check=async()=>{ try{ const t=await (await fetch('index.html?x='+Date.now(),{cache:'no-store'})).text(); const m=t.match(/app\.js\?v=([\w]+)/); if(!m||!mine||m[1]===mine||document.getElementById('newVer')) return;
+    const d=document.createElement('div'); d.id='newVer'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9999;background:#c0392b;color:#fff;font-weight:700;font-size:17px;padding:12px 16px;text-align:center;cursor:pointer';
+    d.textContent='新しい版があります。ここを押して読み込み直してください（書きかけの内容は先に保存してください）'; d.onclick=()=>location.reload(); document.body.appendChild(d); }catch(e){} };
+  setTimeout(check,20000); setInterval(check,5*60e3); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') check(); }); })();
