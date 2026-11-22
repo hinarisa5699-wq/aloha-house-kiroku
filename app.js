@@ -23,6 +23,7 @@ let cfg={url:LS('hc_url')||CK('hc_url')||'',token:LS('hc_token')||CK('hc_token')
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 async function api(action, params={}){
   if(!cfg.url) throw new Error('設定でGASのURLを入れてください');
+  if(action==='saveResidents'){ const n=(params.residents||[]).length, cur=(D&&D.allResidents||[]).length; if(!cur) throw new Error('入居者一覧をまだ読み込めていないので保存しません（読み込み直してください）'); if(n<cur&&!params._ok) throw new Error(`入居者が${cur}人から${n}人に減るので保存しません`); } // 一覧を消してしまう事故を防ぐ（2026/11/22）
   let lastErr;
   for(let i=0;i<4;i++){ // GASがまれにHTMLを返すことがあるので、JSONでなければ少し待って再試行
     try{
