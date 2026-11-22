@@ -162,7 +162,7 @@ function openEntry(rid){ staffExpire(); D.cur=D.residents.find(r=>r.id===rid)||D
 $('#backBtn').onclick=()=>show('today');
 function segButtons(id, vals, onPick){ const el=$('#'+id); el.innerHTML=vals.map(v=>`<button type="button" data-v="${v}">${v}</button>`).join(''); el.onclick=e=>{const b=e.target.closest('button'); if(!b) return; if(el.classList.contains('multi')){ b.classList.toggle('on'); } else { const was=b.classList.contains('on'); [...el.children].forEach(x=>x.classList.toggle('on',x===b&&!was)); } onPick&&onPick(); }; } // 選んでいるボタンをもう一度押すと取り消し
 pickButtons('staple',['欠','注文なし']); pickButtons('side',[]); pickButtons('soup',['なし']); // 食べた量は押すと0〜10が出て選ぶ（2026/11/22） segButtons('med',['済','未','薬なし']); segButtons('water',['0','50','100','150','200','300']); $('#sym').classList.add('multi'); segButtons('sym',SYMS);
-const segVal=id=>{const b=$('#'+id+' button.on');return b?b.dataset.v:'';};
+const segVal=id=>{const b=$('#'+id+' button.on[data-v]');return b?b.dataset.v:'';}; // 数字ピッカーの「選ぶ▼」ボタンも on になるので data-v のあるものだけ見る（2026/11/22 主食が保存できない不具合）
 const segSet=(id,v)=>{$$('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));};
 // ===== 2026/11/22 追加：食べた量の数字ピッカー・記入者が先・モーニングコール・排便 =====
 const HOUSE_R={id:'','部屋':'全体','氏名':'アロハハウス全体の業務日誌（見学者の対応・今後の予定など）'};
