@@ -558,13 +558,16 @@ async function renderList(){
     const nm=Object.fromEntries(D.residents.map(r=>[r.id,r])); nm['']={id:'','部屋':'—','氏名':'アロハハウス'};
     const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
     const body=s=>fmtSch({...s,'開始':'','担当':''});
-    const g={}; for(const s of (D.day.schedules||[])){ if(s['利用者ID']&&!nm[s['利用者ID']]) continue; const k=String(s['担当']||'').trim()||'担当なし'; (g[k]=g[k]||[]).push(s); }
+    // お金（お小遣い・買い物）の予定は担当が空でも、同じ日のその方の訪介の生活援助（身○生○・生○）と一緒にやるので、その訪介の担当の欄に並べる
+    const all=(D.day.schedules||[]).filter(s=>!s['利用者ID']||nm[s['利用者ID']]);
+    const withVisit=s=>{ if(s['種別']!=='お金'||String(s['担当']||'').trim()||!s['利用者ID']) return null; return all.filter(v=>v['利用者ID']===s['利用者ID']&&v['種別']==='訪介'&&/生/.test(v['内容']||'')&&String(v['担当']||'').trim()).sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始'])))[0]||null; };
+    const g={}; for(const s0 of all){ const v=withVisit(s0); const s=v?{...s0,_with:v}:s0; const k=v?String(v['担当']).trim():(String(s['担当']||'').trim()||'担当なし'); (g[k]=g[k]||[]).push(s); }
     const keys=Object.keys(g).sort((a,b)=>(a==='担当なし')-(b==='担当なし')||a.localeCompare(b,'ja'));
     const d=new Date(D.date+'T00:00:00');
     out.innerHTML=`<div class="stf"><h2 style="font-size:16px;margin:0 0 6px">アロハハウス　職員ごとの予定　${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WD[d.getDay()]}）</h2>`+
-      (keys.length?keys.map(k=>{ const l=g[k].sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始']))); return `<div class="grp"><h3>${esc(k)}　<span style="font-weight:400;font-size:12px">${l.length}件</span></h3><table class="grid" style="width:100%"><tr><th style="width:90px">時間</th><th style="width:44px">部屋</th><th style="width:110px">氏名</th><th>予定</th><th>備考</th></tr>`+
-        l.map(s=>{ const r=nm[s['利用者ID']]; return `<tr><td>${esc(s['開始']||'')}${s['終了']?'-'+esc(s['終了']):''}</td><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td style="text-align:left"><span class="sch ${schCls(s)}">${esc(body(s))}</span></td><td class="memo"></td></tr>`; }).join('')+'</table></div>'; }).join(''):'<p class="muted">この日の予定はありません</p>')+
-      '<div class="legend">担当は予定の「担当」欄（カイポケの訪問介護シフトなど）から出しています。日付は「今日の予定/食事」タブで変えられます。</div></div>';
+      (keys.length?keys.map(k=>{ const sk=s=>s._with?tk(s._with['開始'])+'~':tk(s['開始']); const l=g[k].sort((a,b)=>sk(a).localeCompare(sk(b))); return `<div class="grp"><h3>${esc(k)}　<span style="font-weight:400;font-size:12px">${l.length}件</span></h3><table class="grid" style="width:100%"><tr><th style="width:90px">時間</th><th style="width:44px">部屋</th><th style="width:110px">氏名</th><th>予定</th><th>備考</th></tr>`+
+        l.map(s=>{ const r=nm[s['利用者ID']]; return `<tr><td>${s._with?'<small>上の訪介と一緒に</small>':esc(s['開始']||'')+(s['終了']?'-'+esc(s['終了']):'')}</td><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td style="text-align:left"><span class="sch ${schCls(s)}">${esc(body(s))}</span>${s._with?`<br><small>${esc(s._with['開始']||'')} ${esc(body(s._with))} のときに一緒に</small>`:''}</td><td class="memo"></td></tr>`; }).join('')+'</table></div>'; }).join(''):'<p class="muted">この日の予定はありません</p>')+
+      '<div class="legend">担当は予定の「担当」欄（カイポケの訪問介護シフトなど）から出しています。お金（お小遣い・買い物）は、その日のその方の訪介の生活援助の担当の欄に並べています。日付は「今日の予定/食事」タブで変えられます。</div></div>';
   } else if(mode==='info'){
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">入居者一覧　${new Date().toLocaleDateString('ja-JP')}現在</h2><table class="grid"><tr><th>部屋</th><th>氏名</th><th>ふりがな</th><th>入居日</th><th>食事形態</th><th>既往歴</th><th>関係事業所・担当者・連絡先</th></tr>`+
       D.residents.map(r=>`<tr><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td class="l">${esc(r['ふりがな'])}</td><td>${r['入居日']?esc(r['入居日'].replace(/-/g,'/')):''}</td><td>${esc(r['食事形態'])}</td><td style="text-align:left">${esc(r['既往歴'])}</td><td style="text-align:left">${contactsOf(r.id).map(c=>`${esc(c['種別'])}：${esc(c['事業所'])}${c['担当者']?' '+esc(c['担当者']):''}${c['連絡先']?' '+esc(c['連絡先']):''}`).join('<br>')}</td></tr>`).join('')+'</table>';
