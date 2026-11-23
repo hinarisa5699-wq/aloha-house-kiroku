@@ -553,6 +553,18 @@ async function renderList(){
       (none.length?`<p class="sub">予定なし：${none.map(r=>esc(r['部屋'])+' '+esc(r['氏名'])).join('　')}</p>`:'')+
       (house.length?`<p class="sub">ハウス全体：${house.map(e=>(e['時刻']?e['時刻']+' ':'')+esc(e['内容'])).join('　／　')}</p>`:'')+
       '<div class="memo-box">連絡・メモ</div>';
+  } else if(mode==='staff'){
+    // この日の予定を担当職員ごとにまとめる（印刷して各自が持てるように）。担当が空の予定は最後に「担当なし」
+    const nm=Object.fromEntries(D.residents.map(r=>[r.id,r])); nm['']={id:'','部屋':'—','氏名':'アロハハウス'};
+    const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
+    const body=s=>fmtSch({...s,'開始':'','担当':''});
+    const g={}; for(const s of (D.day.schedules||[])){ if(s['利用者ID']&&!nm[s['利用者ID']]) continue; const k=String(s['担当']||'').trim()||'担当なし'; (g[k]=g[k]||[]).push(s); }
+    const keys=Object.keys(g).sort((a,b)=>(a==='担当なし')-(b==='担当なし')||a.localeCompare(b,'ja'));
+    const d=new Date(D.date+'T00:00:00');
+    out.innerHTML=`<div class="stf"><h2 style="font-size:16px;margin:0 0 6px">アロハハウス　職員ごとの予定　${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WD[d.getDay()]}）</h2>`+
+      (keys.length?keys.map(k=>{ const l=g[k].sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始']))); return `<div class="grp"><h3>${esc(k)}　<span style="font-weight:400;font-size:12px">${l.length}件</span></h3><table class="grid" style="width:100%"><tr><th style="width:90px">時間</th><th style="width:44px">部屋</th><th style="width:110px">氏名</th><th>予定</th><th>備考</th></tr>`+
+        l.map(s=>{ const r=nm[s['利用者ID']]; return `<tr><td>${esc(s['開始']||'')}${s['終了']?'-'+esc(s['終了']):''}</td><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td style="text-align:left"><span class="sch ${schCls(s)}">${esc(body(s))}</span></td><td class="memo"></td></tr>`; }).join('')+'</table></div>'; }).join(''):'<p class="muted">この日の予定はありません</p>')+
+      '<div class="legend">担当は予定の「担当」欄（カイポケの訪問介護シフトなど）から出しています。日付は「今日の予定/食事」タブで変えられます。</div></div>';
   } else if(mode==='info'){
     out.innerHTML=`<h2 style="font-size:15px;margin:0 0 6px">入居者一覧　${new Date().toLocaleDateString('ja-JP')}現在</h2><table class="grid"><tr><th>部屋</th><th>氏名</th><th>ふりがな</th><th>入居日</th><th>食事形態</th><th>既往歴</th><th>関係事業所・担当者・連絡先</th></tr>`+
       D.residents.map(r=>`<tr><td>${esc(r['部屋'])}</td><td class="l">${esc(r['氏名'])}</td><td class="l">${esc(r['ふりがな'])}</td><td>${r['入居日']?esc(r['入居日'].replace(/-/g,'/')):''}</td><td>${esc(r['食事形態'])}</td><td style="text-align:left">${esc(r['既往歴'])}</td><td style="text-align:left">${contactsOf(r.id).map(c=>`${esc(c['種別'])}：${esc(c['事業所'])}${c['担当者']?' '+esc(c['担当者']):''}${c['連絡先']?' '+esc(c['連絡先']):''}`).join('<br>')}</td></tr>`).join('')+'</table>';
