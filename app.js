@@ -76,7 +76,7 @@ async function boot(){ document.body.classList.toggle('ro',RO());
   const applyBoot=b=>{ D._act=b.residents; D.allResidents=b.allResidents; resFilter(); D.staff=b.staff; D.contacts=b.contacts||[]; D.profiles=b.profiles||[]; renderStaffSel(); renderResTable(); $('#staffText').value=D.staff.join('\n'); const lr=$('#lineRes'); if(lr){ const cur=lr.value; lr.innerHTML='<option value="">（職員の全体グループ：名前で判定）</option>'+D.residents.map(r=>`<option value="${r.id}">${esc(r['氏名'])}</option>`).join(''); lr.value=cur; } };
   try{ const cb=JSON.parse(LS('hc_cache_boot')||'null'), cd=dayCacheGet(D.date); if(cb&&cb.residents){ applyBoot(cb); if(cd){ D.day=cd; renderToday(); $('#ttl').textContent+='（更新中…）'; } } }catch(e){}
   const slow=setTimeout(()=>{ if(/読み込み中/.test($('#todayList').textContent)) $('#todayList').innerHTML='<div class="card">読み込みに時間がかかっています。通信状況を確認して、少し待つか<button class="btn" type="button" onclick="location.reload()">再読み込み</button>してください。</div>'; },15000);
-  try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); portalKeySync().then(portalFill); if(window._openPanel==='diary'){ window._openPanel=''; $('#dMode').value='day'; show('diary'); } D.day=d; dayCachePut(D.date,d); renderToday(); loadBowel(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
+  try{ busy(true); const b=await api('init',{date:D.date}); const d=b.day; delete b.day; applyBoot(b); LSs('hc_cache_boot',JSON.stringify(b)); showAiStatus(); portalKeySync().then(portalFill); if(window._openPanel==='diary'){ window._openPanel=''; $('#dMode').value='day'; show('diary'); } D.day=d; dayCachePut(D.date,d); renderToday(); loadBowel(); loadOcPrev(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); clearTimeout(slow); }
   catch(e){ $('#todayList').innerHTML=`<div class="card">接続できません：${e.message}<br><span class="muted">設定を確認してください</span></div>`; }
   finally{ busy(false); }
 }
@@ -89,13 +89,16 @@ function resFilter(){ const act=D._act||D.residents||[]; D.activeResidents=act; 
 async function loadDay(){ resFilter();
   const seq=++_loadSeq; const want=D.date;
   const c=dayCacheGet(want); if(c){ D.day=c; renderToday(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); $('#ttl').textContent+='（更新中…）'; }
-  try{ busy(true); const d=await api('day',{date:want}); if(seq!==_loadSeq||want!==D.date) return; D.day=d; dayCachePut(want,d); renderToday(); loadBowel(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); }
+  try{ busy(true); const d=await api('day',{date:want}); if(seq!==_loadSeq||want!==D.date) return; D.day=d; dayCachePut(want,d); renderToday(); loadBowel(); loadOcPrev(); if($('#p-entry').classList.contains('on')) renderEntry(); if($('#p-list').classList.contains('on')) renderList(); }
   catch(e){ if(seq===_loadSeq) toast('読み込み失敗: '+e.message); } finally{ if(seq===_loadSeq) busy(false); }
 }
 const mealOf=(rid,meal)=>D.day.meals.find(m=>m['利用者ID']===rid&&m['食事']===meal);
 const extOf=rid=>(D.day.ext||[]).filter(e=>e['利用者ID']===rid||(rid&&e['利用者ID']===''&&false)).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''));
 // ハウス全体の記録（利用者IDなし：ハウス日誌の全体の文、LINEの地震・設備・オンコール全体報告など）
-const houseExt=()=>(D.day.ext||[]).filter(e=>e['利用者ID']===''&&e['内容']).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''));
+// 前の夜のオンコール報告（当番日=前日で保存）を、当番明けの朝の「予定」の下と業務日誌に出す（アロハ花子のときと同じ見え方）2026/11/25
+const ocPrevExt=()=>{ const o=D.day&&D.day.ocPrev; if(!o||o.d!==D.date||!o.e) return []; const e=o.e; return [{id:e.id,'日付':D.date,'時刻':'','利用者ID':'','種別':'オンコール','内容':`（${mdJ(e['日付'])}夜の当番）`+String(e['内容']||''),'記録者':e['記入者']||'','出所':'オンコール報告'}]; };
+async function loadOcPrev(){ const d=D.date; try{ const prev=addDay(d,-1); const l=await api('diaryList',{date:prev}); if(d!==D.date||!D.day) return; const e=(l||[]).find(x=>String(x.id||'')==='ocd-'+prev)||null; const was=JSON.stringify(D.day.ocPrev||null); D.day.ocPrev={d,e}; dayCachePut(d,D.day); if(was!==JSON.stringify(D.day.ocPrev)) renderToday(); }catch(er){} }
+const houseExt=()=>ocPrevExt().concat((D.day.ext||[]).filter(e=>e['利用者ID']===''&&e['内容'])).sort((a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''));
 const hxIsOC=x=>!!x&&/オンコール/.test((x['種別']||'')+(x['内容']||''));
 const hxNone=x=>hxIsOC(x)&&/(なし|無し|なかった|[0０]件)/.test(String(x['内容']||''))&&!/[1-9１-９]件/.test(String(x['内容']||'')); // 「オンコールなし」には詳細ボタンを出さない
 const hxBare=x=>{ const t=String(x&&x['内容']||'').replace(/【[^】]*】?/g,'').replace(/(夜間の?)?オンコール(呼び出し|対応)?(は)?\s*[0-9０-９]*\s*件(であった|だった)?[。、]?/g,'').replace(/[\s。、]/g,''); return hxIsOC(x)&&t.length<12; }; // 件数・担当だけで中身が書かれていない記録
@@ -472,7 +475,7 @@ $('#dMode').onchange=()=>{ $('#dRes').classList.toggle('hide',$('#dMode').value!
 async function gyomuHtml(){ const [list,_]=await Promise.all([api('diaryList',{date:D.date}),Promise.resolve()]); const sortT=(a,b)=>(a['時刻']||'').localeCompare(b['時刻']||''); const tk=t=>{ t=t||'99:99'; return /^\d:/.test(t)?'0'+t:t; };
   const nm=Object.fromEntries(D.residents.map(r=>[r.id,r])); nm['']={'部屋':'—','氏名':'アロハハウス'};
   const sch=(D.day.schedules||[]).filter(s=>nm[s['利用者ID']]).sort((a,b)=>tk(a['開始']).localeCompare(tk(b['開始'])));
-  const house=list.filter(e=>e['利用者ID']==='').concat(houseExt().map(e=>({'時刻':e['時刻'],'種別':e['種別'],'内容':e['内容'],'記入者':e['記録者'],'出所':e['出所']}))).sort(sortT);
+  const house=list.filter(e=>e['利用者ID']===''&&!String(e.id||'').startsWith('ocd-')).concat(houseExt().map(e=>({'時刻':e['時刻'],'種別':e['種別'],'内容':e['内容'],'記入者':e['記録者'],'出所':e['出所']}))).sort(sortT);
   const ent=e=>`<div class="gn"><span class="gm">${esc(e['時刻']||'')} ${esc(e['種別']||'')}${e['出所']&&e['出所']!=='手入力'?'〔'+esc(e['出所'])+'〕':''}${e['記入者']&&e['記入者']!=='LINE'?' '+esc(e['記入者']):''}</span> ${esc(e['内容'])}</div>`;
   const mealTxt=m=>{ const x=mealOf(m[0],m[1]); if(!x) return '未'; if(x['主食']==='注文なし') return 'なし'; if(x['主食']==='欠') return '欠食'; return `${x['主食']}/${x['副食']}${x['汁物']&&x['汁物']!=='なし'?'/'+x['汁物']:''}${x['服薬']==='済'?' 薬✓':x['服薬']==='未'?' 薬未':''}${x['症状']?' '+x['症状']:''}`; };
   const strip=h=>String(h).replace(/<[^>]+>/g,'');
