@@ -251,20 +251,23 @@ const CIRC='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮';
 const ocCallDate=(duty,t)=>(t&&t>='12:00')?duty:addDay(duty,1);
 function ocText(duty,staff,rows){ const nm=id=>{ const r=D.allResidents.find(x=>x.id===id); return r?r['氏名'].replace(/[\s　]+/g,'')+'様':'（入居者以外）'; };
   return `【オンコール報告】${mdJ(duty)} 夜の当番：${staff||'（未選択）'}\n`+(rows.length?`オンコール${rows.length}件\n`+rows.map((r,i)=>`${CIRC[i]||'・'}${r.t?r.t+' ':''}${nm(r.rid)}：${r.text}`).join('\n'):'オンコールなし'); }
+// アロハハウス全体グループ（ポータルのトーク）に送る短い文。0件のときは送らない 2026/11/25
+function ocShort(duty,staff,rows){ if(!rows.length) return ''; const nm=id=>{ const r=D.allResidents.find(x=>x.id===id); return r?r['氏名'].replace(/[\s　]+/g,'')+'様':'入居者以外'; }; const ns=[...new Set(rows.map(r=>nm(r.rid)))];
+  return `【オンコール報告】${mdJ(duty)}夜 当番：${staff||'（未選択）'}\nオンコール${rows.length}件　${ns.join('・')}でした。詳細は個人日誌に記載しています。`; }
 function openOC(){ staffExpire(); let ov=$('#ocOv'); if(!ov){ ov=document.createElement('div'); ov.id='ocOv'; ov.className='ov'; document.body.appendChild(ov); }
   const now=new Date(); const duty=now.getHours()<12?addDay(ymdOf(now),-1):ymdOf(now); const cur=LS('hc_staff')||'';
   const resOpts='<option value="">（入居者を選ぶ）</option>'+D.residents.map(r=>`<option value="${r.id}">${esc(r['部屋'])} ${esc(r['氏名'])}</option>`).join('');
-  ov.innerHTML=`<div class="ovbox"><h2 style="margin:0 0 6px">📞 オンコール報告</h2><div class="muted" style="margin-bottom:6px">当番明けに当番の人が入力します。保存すると個人日誌・業務日誌に入り、ポータルからアロハハウスの全員にメッセージが届きます。</div>
+  ov.innerHTML=`<div class="ovbox"><h2 style="margin:0 0 6px">📞 オンコール報告</h2><div class="muted" style="margin-bottom:6px">当番明けに当番の人が入力します。保存すると個人日誌・業務日誌に入ります。呼び出しがあったときは、ポータルの「アロハハウス」グループにメッセージが届きます（0件のときは送りません）。</div>
    <div class="field"><div class="lb"><span><b>① 当番の日</b>（夜の当番に入った日）</span></div><input type="date" id="ocDate" value="${duty}"></div>
    <div class="field"><div class="lb"><span><b>② 当番の人</b></span></div><select id="ocStaff"><option value="">（選択）</option>${D.staff.map(s=>`<option ${s===cur?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
    <div id="ocBody"><div class="field"><div class="lb"><span><b>③ 呼び出し</b></span></div><div class="seg" id="ocHas"><button type="button" data-v="0" class="on">なし（0件）</button><button type="button" data-v="1">あり</button></div></div>
    <div id="ocRows"></div><button class="btn hide" id="ocAdd" type="button" style="margin-top:4px">＋ 呼び出しを足す</button>
-   <div class="field" style="margin-top:8px"><div class="lb"><span><b>送られるメッセージ</b></span></div><pre id="ocPrev" style="white-space:pre-wrap;background:#fff7e6;border-radius:8px;padding:8px;margin:0;font:inherit;font-size:13px"></pre></div>
+   <div class="field" style="margin-top:8px"><div class="lb"><span><b>アロハハウスのグループに送られるメッセージ</b></span></div><pre id="ocPrev" style="white-space:pre-wrap;background:#fff7e6;border-radius:8px;padding:8px;margin:0;font:inherit;font-size:13px"></pre></div>
    <div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn" id="ocCancel">やめる</button><button class="btn pri big" id="ocSend">保存して全員に知らせる</button></div><div id="ocMsg" style="color:#c0392b;font-weight:700;min-height:1.2em"></div></div></div>`;
   ov.classList.remove('hide');
   const rowHtml=()=>`<div class="card ocrow" style="padding:8px;margin:6px 0"><div class="row" style="gap:6px;flex-wrap:wrap"><input type="time" data-k="t" style="flex:none;width:110px"><select data-k="rid" style="flex:1 1 160px">${resOpts}</select><button class="btn" type="button" data-k="del" style="flex:none;padding:2px 10px">消す</button></div><textarea data-k="text" placeholder="呼ばれた理由・対応・その後の様子" style="min-height:60px;margin-top:4px"></textarea></div>`;
   const rows=()=>$$('#ocRows .ocrow').map(c=>({t:c.querySelector('[data-k="t"]').value,rid:c.querySelector('[data-k="rid"]').value,text:c.querySelector('[data-k="text"]').value.trim()}));
-  const upd=()=>{ $('#ocPrev').textContent=ocText($('#ocDate').value,$('#ocStaff').value,$('#ocHas button.on').dataset.v==='1'?rows():[]); $('#ocBody').classList.toggle('locked',!$('#ocStaff').value); };
+  const upd=()=>{ const rr=$('#ocHas button.on').dataset.v==='1'?rows():[]; $('#ocPrev').textContent=ocShort($('#ocDate').value,$('#ocStaff').value,rr)||'0件なので送りません（日誌への保存だけ）'; $('#ocSend').textContent=rr.length?'保存してグループに知らせる':'保存する'; $('#ocBody').classList.toggle('locked',!$('#ocStaff').value); };
   const addRow=()=>{ $('#ocRows').insertAdjacentHTML('beforeend',rowHtml()); const c=$$('#ocRows .ocrow').pop(); c.querySelector('[data-k="del"]').onclick=()=>{ c.remove(); upd(); }; c.oninput=upd; c.onchange=upd; upd(); };
   $('#ocHas').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; $$('#ocHas button').forEach(x=>x.classList.toggle('on',x===b)); const has=b.dataset.v==='1'; $('#ocAdd').classList.toggle('hide',!has); $('#ocRows').classList.toggle('hide',!has); if(has&&!$$('#ocRows .ocrow').length) addRow(); upd(); };
   $('#ocAdd').onclick=addRow; $('#ocDate').onchange=upd; $('#ocStaff').onchange=()=>{ LSs('hc_staff',$('#ocStaff').value); LSs('hc_staff_at',String(Date.now())); upd(); };
@@ -272,16 +275,17 @@ function openOC(){ staffExpire(); let ov=$('#ocOv'); if(!ov){ ov=document.create
   $('#ocSend').onclick=async()=>{ const duty=$('#ocDate').value, staff=$('#ocStaff').value; const rs=$('#ocHas button.on').dataset.v==='1'?rows():[]; const M=t=>$('#ocMsg').textContent=t;
     if(!duty) return M('当番の日を入れてください'); if(!staff) return M('当番の人を選んでください');
     for(const [i,r] of rs.entries()){ if(!r.t) return M(`${i+1}件目の時刻を入れてください`); if(!r.rid) return M(`${i+1}件目の入居者を選んでください`); if(!r.text) return M(`${i+1}件目の内容を書いてください`); }
-    const b=$('#ocSend'); b.disabled=true; b.textContent='保存中…'; const text=ocText(duty,staff,rs);
+    const b=$('#ocSend'); b.disabled=true; b.textContent='保存中…'; const text=ocText(duty,staff,rs), short=ocShort(duty,staff,rs);
     try{
       for(const r of rs){ const res=D.allResidents.find(x=>x.id===r.rid); const cd=ocCallDate(duty,r.t);
         await api('saveDiary',{record:{id:`oc-${cd.replace(/-/g,'')}${r.t.replace(':','')}-${r.rid}`,'日付':cd,'時刻':r.t,'利用者ID':r.rid,'氏名':res['氏名'],'種別':'オンコール','内容':r.text,'記入者':staff,'出所':'オンコール報告'}}); }
       // 当番1日に1件のまとめ（業務日誌・給与計算のCSVに使う。入れ直したら上書き）
       await api('saveDiary',{record:{id:'ocd-'+duty,'日付':duty,'時刻':'','利用者ID':'','氏名':HOUSE_R['氏名'],'種別':'オンコール当番','内容':`オンコール呼び出し${rs.length}件【担当:${staff}】`+(rs.length?'\n'+text.split('\n').slice(2).join('\n'):''),'記入者':staff,'出所':'オンコール報告'}});
       LSs('hc_staff_at',String(Date.now()));
-    }catch(e){ b.disabled=false; b.textContent='保存して全員に知らせる'; return M('保存できませんでした: '+e.message); }
-    try{ await portalApi('oncallReport',{date:duty,staff,count:rs.length,text}); ov.classList.add('hide'); toast('保存して、アロハハウスの全員に知らせました'); }
-    catch(e){ M('日誌には保存しました。ポータルへの送信はできませんでした: '+e.message); b.textContent='もう一度知らせる'; b.disabled=false; b.onclick=async()=>{ try{ await portalApi('oncallReport',{date:duty,staff,count:rs.length,text}); ov.classList.add('hide'); toast('アロハハウスの全員に知らせました'); }catch(er){ M('送れませんでした: '+er.message); } }; }
+    }catch(e){ b.disabled=false; b.textContent=rs.length?'保存してグループに知らせる':'保存する'; return M('保存できませんでした: '+e.message); }
+    if(!rs.length){ ov.classList.add('hide'); toast('保存しました（0件なのでメッセージは送っていません）'); if($('#p-diary').classList.contains('on')) renderDiary(); return; }
+    try{ await portalApi('oncallReport',{date:duty,staff,count:rs.length,text,short}); ov.classList.add('hide'); toast('保存して、アロハハウスのグループに知らせました'); }
+    catch(e){ M('日誌には保存しました。ポータルへの送信はできませんでした: '+e.message); b.textContent='もう一度知らせる'; b.disabled=false; b.onclick=async()=>{ try{ await portalApi('oncallReport',{date:duty,staff,count:rs.length,text,short}); ov.classList.add('hide'); toast('アロハハウスのグループに知らせました'); }catch(er){ M('送れませんでした: '+er.message); } }; }
     if($('#p-diary').classList.contains('on')) renderDiary(); };
 }
 // 給与計算アプリ用：オンコール当番のCSV（当番日・担当・件数・内容）。当番明けの記録の前日が当番日
