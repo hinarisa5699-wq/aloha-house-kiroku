@@ -746,6 +746,8 @@ async function importLineFile(f, st, ym, opts){ opts=opts||{};
     // ご家族グループ（特定の入居者の関係者とのトーク）：選んだ入居者を覚えて、次回から自動で同じ方にする
     const lrSel=opts.useSel===false?null:$('#lineRes'); const roomMap=gProf('line_room')||{}; let focusId=(lrSel&&lrSel.value)||roomMap[room]||''; /* 複数ファイル同時のときは手で選んだ入居者は使わず、覚えている対応だけ使う */ if(lrSel&&!lrSel.value&&focusId){ lrSel.value=focusId; if(lrSel.value!==focusId) focusId=''; }
     const focusRes=focusId?D.residents.find(r=>r.id===focusId):null; const focus=focusRes?focusRes['氏名']:'';
+    // LINEは利用者・ご家族のLINEだけ取り込む（職員の連絡はポータルのトークから取り込む）2026/11/25
+    if(!focus&&opts.stamp!=='ポータル') throw new Error('職員のLINEグループは取り込みません（職員の連絡はポータルのトークから取り込みます）。利用者・ご家族のLINEなら「対象の入居者」を選んでから入れてください');
     if(lrSel&&lrSel.value&&roomMap[room]!==lrSel.value){ roomMap[room]=lrSel.value; await sProf('line_room',roomMap); } else if(lrSel&&!lrSel.value&&roomMap[room]&&!focusId){ delete roomMap[room]; await sProf('line_room',roomMap); }
     // 前回どこまで読んだか（月×トークルームごとのカーソル）。最後に読んだ投稿を探して、その続きだけ対象にする
     const sig=g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''} ${(g.sender||'')}|${String(g.text).slice(0,120)}`;
@@ -817,6 +819,12 @@ async function importPortalTalk(){ const st=$('#ptStatus'); if(!st) return;
   }catch(err){ st.innerHTML='<span style="color:#b3261e;font-weight:700">⚠ エラー</span> '+esc(err.message); }
 }
 if($('#ptImport')) $('#ptImport').onclick=()=>importPortalTalk();
+// 拡張機能（カイポケ記録同期）の「ポータルのトークを取り込む」「すべてまとめて」から ?auto=ptalk で裏で開かれたとき：取り込んで、結果をタブの題名で知らせる
+(function(){ if(!/[?&]auto=ptalk(&|$)/.test(location.search)) return; let n=0; const t=setInterval(async()=>{ n++;
+  if(n>90){ clearInterval(t); document.title='PTALK_ERR アロハハウスアプリの読み込みが終わりませんでした'; return; }
+  if(!(typeof D!=='undefined'&&D.residents&&D.residents.length)) return; clearInterval(t);
+  try{ if(!portalKey()) throw new Error('ポータルの合言葉がありません（一度ポータルからアロハハウスアプリを開いてください）'); await importPortalTalk(); const st=(($('#ptStatus')||{}).textContent||'').replace(/\s+/g,' ').trim(); document.title=(/エラー|⚠/.test(st)?'PTALK_ERR ':'PTALK_DONE ')+st.slice(0,300); }
+  catch(e){ document.title='PTALK_ERR '+(e.message||e); } },1000); })();
 if($('#impLine')) $('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
 $('#impLine2').onchange=async e=>{ const files=[...e.target.files]; const st=$('#lineStatus'); const results=[];
   // 複数ファイルは順番に処理（全体グループ／ご家族グループの区別は、覚えている対応で自動判定）
