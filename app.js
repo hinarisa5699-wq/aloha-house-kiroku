@@ -139,7 +139,7 @@ function renderTodaySch(){
 // 取り込みの実施記録（介護記録PDF・LINE）。今日まだなら「今日の予定/食事」の上に注意を出す
 function importLast(){ const r=(D.profiles||[]).find(p=>p['利用者ID']===''&&p['キー']==='import_last'); try{ return r?JSON.parse(r['値'])||{}:{}; }catch(e){ return {}; } }
 async function stampImport(kinds){ let v=importLast(); const now=new Date(); const t=`${todayStr()} ${pad(now.getHours())}:${pad(now.getMinutes())}`; kinds.forEach(k=>v[k]=t); try{ const r=await api('stampImport',{kinds}); if(r){ try{ v=JSON.parse(r)||v; }catch(e){} } }catch(e){} D.profiles=(D.profiles||[]).filter(p=>!(p['利用者ID']===''&&p['キー']==='import_last')); D.profiles.push({'利用者ID':'','キー':'import_last','値':JSON.stringify(v)}); renderImportWarn(); } // サーバー側で合流させる（他の種類の印を古い値で上書きしない）
-function renderImportWarn(){ const el=$('#impWarn'); if(!el) return; const v=importLast(); const need=[['介護記録','介護記録（毎日の記録・業務日誌）'],['LINE','LINEトーク']];
+function renderImportWarn(){ const el=$('#impWarn'); if(!el) return; const v=importLast(); const need=[['介護記録','介護記録（毎日の記録・業務日誌）'],['ポータル','ポータルのトーク']]; // 職員の連絡はLINEからポータルのトークに変わった（LINEは新城さんなど一部だけ）2026/11/25
   // 最後に取り込んだ日時を出す。前日より前（＝昨日も今日も取り込んでいない）のものだけ赤で警告
   const y=new Date(); y.setDate(y.getDate()-1); const yStr=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`;
   const fmt=t=>{ if(!t) return '未取込'; const m=String(t).match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}:\d{2}))?/); if(!m) return esc(t); const d=`${m[1]}-${m[2]}-${m[3]}`; return (d===todayStr()?'今日':d===yStr?'昨日':`${+m[2]}/${+m[3]}`)+(m[4]?' '+m[4]:''); };
@@ -759,7 +759,7 @@ async function importLineFile(f, st, ym, opts){ opts=opts||{};
     if(!cur&&!redo){ try{ const mo=await api('month',{ym}); const leg=(mo.ext||[]).filter(r=>r['取込キー']===ym+'|LINE').map(r=>r['日付']).sort(); if(leg.length){ const maxD=leg[leg.length-1]; const k=all.findIndex(g=>`${g.y}-${pad(g.m)}-${pad(g.d)}`>=maxD); start=k<0?all.length:k; } }catch(e){} }
     const fresh=all.slice(start);
     const isSys=t=>/^(画像|動画|スタンプ|\[投票|\[投票終了|.*をグループに追加しました。?$|.*がグループのプロフィール画像を変更しました。?$|メッセージの送信を取り消しました|\(emotional\))/.test(t)||(/https?:\/\//.test(t)&&t.length<80);
-    const picked=fresh.filter(g=>{ const t=g.text; if(isSys(t)) return false; if(focus) return true; return sns.some(s=>t.indexOf(s)>=0) || RE_HOUSE_KW.test(t) || /オンコール/.test(g.sender||''); })
+    const picked=fresh.filter(g=>{ const t=g.text; if(isSys(t)) return false; if(focus) return true; return sns.some(s=>t.indexOf(s)>=0) || RE_HOUSE_KW.test(t) || /オンコール/.test(g.sender||'') || /^\[アロハハウス/.test(t); /* ポータルのアロハハウスグループは名前がなくても読む */ })
       .map(g=>({date:`${g.y}-${pad(g.m)}-${pad(g.d)}`,time:g.time,sender:g.sender,text:g.text.slice(0,600)}));
     const lastOf=g=>`${g.y}/${g.m}/${g.d} ${g.time||''}`;
     const saveCursor=async()=>{ const last=all[all.length-1]; await sProf(curKey,{n:all.length,last:sig(last),lastAt:`${last.y}-${pad(last.m)}-${pad(last.d)} ${last.time||''}`,at:new Date().toISOString()}); };
@@ -768,7 +768,7 @@ async function importLineFile(f, st, ym, opts){ opts=opts||{};
     if(!picked.length){ await saveCursor(); curStep=''; st.innerHTML=`<span style="font-weight:700;color:#1f7a3a">✓ 確認済み</span>　${esc(roomLabel)}：新しい投稿${fresh.length}通（〜${lastOf(all[all.length-1])}）に入居者に関するものはありませんでした（次回はこの続きから読みます）`+(focus?'':'。特定の入居者のご家族グループなら、「対象の入居者」を選んでから入れ直してください'); return; }
     const impKey=ym+'|LINE|'+room; const extraKeys=[]; // 取込キーはルーム別。旧版のキー（ym|LINE）の分は消さない（他のルームの分が混ざっているため）
     const msg=start>0?`${roomLabel}：${ym}の新着${fresh.length}通のうち ${picked.length}通をAIで抽出します（前回の続き。既存の抽出は残します）。よろしいですか？`:`${roomLabel}：${ym}の投稿${all.length}通のうち ${picked.length}通をAIで抽出します。よろしいですか？（既にあるこのグループの${ym}のLINE抽出は置き換えます）`;
-    if(!confirm(msg)) { curStep=''; st.textContent='中止しました'; return; }
+    if(!opts.noConfirm&&!confirm(msg)) { curStep=''; st.textContent='中止しました'; return; }
     const CH=60; let total=0, totalDiary=0, totalSch=0, totalMeals=0; const byName=new Map(D.residents.map(r=>[normName(r['氏名']),r]));
     const nchunk=Math.ceil(picked.length/CH);
     for(let i=0;i<picked.length;i+=CH){ const ci=Math.floor(i/CH)+1; const pre=nchunk>1?`（${ci}/${nchunk}回目）`:'';
@@ -791,11 +791,32 @@ async function importLineFile(f, st, ym, opts){ opts=opts||{};
       const mrows=(res.meals||[]).map(it=>{ const r=byName.get(normName(it.resident)); return r?{'日付':it.date,'利用者ID':r.id,'氏名':r['氏名'],'食事':it.meal,'主食':it.staple,'副食':it.side,'汁物':it.soup,'水分':it.water,'症状':it.sym||'','備考':'LINEより'}:null; }).filter(Boolean);
       if(mrows.length){ step(`食事記録を保存中${pre}`); try{ const a=await api('autoMeals',{rows:mrows,source:'LINE'}); totalMeals+=a.saved||0; }catch(e){} }
     }
-    step('仕上げ中'); await saveCursor(); stampImport(['LINE']); curStep='';
+    step('仕上げ中'); await saveCursor(); stampImport([opts.stamp||'LINE']); curStep='';
     st.innerHTML=`<span style="font-weight:700;color:#1f7a3a">✓ 完了</span>　${esc(roomLabel)} ${start>0?'新着':''}${picked.length}通 → 記録${total}件・日誌${totalDiary}件・予定${totalSch}件・食事${totalMeals}件を保存しました（${Math.round((Date.now()-t0)/1000)}秒）。日誌タブと予定タブで確認し、違うものは削除してください`;
     loadDay(); if($('#p-set').classList.contains('on')) loadExtList();
   }catch(err){ curStep=''; st.innerHTML='<span style="color:#b3261e;font-weight:700">⚠ エラー</span> '+esc(err.message); console.error(err); } finally{ clearInterval(tm); busy(false); }
 }
+// ===== アロハ業務ポータルのトークの取り込み（AI）2026/11/25 =====
+// ポータルの「アロハハウス」グループ・入居者の担当グループと、入居者の名前が出てくるトークを読み、LINEと同じしくみで予定・日誌・記録に入れる（どこまで読んだかは月ごとに覚える）
+async function importPortalTalk(){ const st=$('#ptStatus'); if(!st) return;
+  try{ st.textContent='ポータルのトークを読んでいます…';
+    const now=new Date(); const from=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const names=D.residents.map(r=>r['氏名']);
+    const list=await portalApi('houseTalk',{names,since:from.getTime()});
+    if(!list||!list.length){ st.innerHTML='<span style="font-weight:700;color:#1f7a3a">✓ 確認済み</span>　入居者に関するトークはありませんでした'; stampImport(['ポータル']); return; }
+    const WDJ='日月火水木金土'; const byYm={};
+    list.sort((a,b)=>a.at-b.at).forEach(m=>{ const d=new Date(m.at); const ym=`${d.getFullYear()}-${pad(d.getMonth()+1)}`; (byYm[ym]=byYm[ym]||[]).push(m); });
+    const yms=Object.keys(byYm).sort(); let done=[];
+    for(const ym of yms){ let txt='[LINE] アロハ業務ポータルのトーク履歴\n'; let lastD='';
+      for(const m of byYm[ym]){ const d=new Date(m.at); const ds=`${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}(${WDJ[d.getDay()]})`; if(ds!==lastD){ txt+=ds+'\n'; lastD=ds; }
+        const body=String(m.text||'').replace(/^(\d{4}[.\/-]\d)/gm,' $1').replace(/^(\d{1,2}:\d{2})/gm,' $1'); txt+=`${pad(d.getHours())}:${pad(d.getMinutes())}\t${String(m.by||'').replace(/\t/g,' ')}\t[${m.group||'個別'}] ${body}\n`; }
+      const sub=document.createElement('div'); st.innerHTML=''; st.appendChild(sub);
+      await importLineFile(new Blob([txt],{type:'text/plain'}), sub, ym, {useSel:false, noConfirm:true, stamp:'ポータル'});
+      done.push(`${ym}：${sub.textContent}`); }
+    st.innerHTML=done.map(t=>`<div>${esc(t)}</div>`).join('');
+  }catch(err){ st.innerHTML='<span style="color:#b3261e;font-weight:700">⚠ エラー</span> '+esc(err.message); }
+}
+if($('#ptImport')) $('#ptImport').onclick=()=>importPortalTalk();
 if($('#impLine')) $('#impLine').onchange=async e=>{ const f=e.target.files[0]; if(f) await importLineFile(f,$('#extStatus'),$('#extYM').value); e.target.value=''; };
 $('#impLine2').onchange=async e=>{ const files=[...e.target.files]; const st=$('#lineStatus'); const results=[];
   // 複数ファイルは順番に処理（全体グループ／ご家族グループの区別は、覚えている対応で自動判定）
