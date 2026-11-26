@@ -747,7 +747,7 @@ async function importLineFile(f, st, ym, opts){ opts=opts||{};
     const lrSel=opts.useSel===false?null:$('#lineRes'); const roomMap=gProf('line_room')||{}; let focusId=(lrSel&&lrSel.value)||roomMap[room]||''; /* 複数ファイル同時のときは手で選んだ入居者は使わず、覚えている対応だけ使う */ if(lrSel&&!lrSel.value&&focusId){ lrSel.value=focusId; if(lrSel.value!==focusId) focusId=''; }
     const focusRes=focusId?D.residents.find(r=>r.id===focusId):null; const focus=focusRes?focusRes['氏名']:'';
     // LINEは利用者・ご家族のLINEだけ取り込む（職員の連絡はポータルのトークから取り込む）2026/11/25
-    if(!focus&&opts.stamp!=='ポータル') throw new Error('職員のLINEグループは取り込みません（職員の連絡はポータルのトークから取り込みます）。利用者・ご家族のLINEなら「対象の入居者」を選んでから入れてください');
+    // 2026/11/26：職員のLINEグループの取り込みも当面は残す（前垣さん「まだLINEトーク取込機能はいれといて」）
     if(lrSel&&lrSel.value&&roomMap[room]!==lrSel.value){ roomMap[room]=lrSel.value; await sProf('line_room',roomMap); } else if(lrSel&&!lrSel.value&&roomMap[room]&&!focusId){ delete roomMap[room]; await sProf('line_room',roomMap); }
     // 前回どこまで読んだか（月×トークルームごとのカーソル）。最後に読んだ投稿を探して、その続きだけ対象にする
     const sig=g=>`${g.y}-${pad(g.m)}-${pad(g.d)} ${g.time||''} ${(g.sender||'')}|${String(g.text).slice(0,120)}`;
