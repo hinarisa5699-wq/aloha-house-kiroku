@@ -312,11 +312,12 @@ async function serveCsvDownload(){ const ym=(D.date||ymdOf(new Date())).slice(0,
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"'; const ML=['朝食','昼食','おやつ','夕食'];
   const byDay={}; meals.forEach(x=>{const k=x['利用者ID']+'|'+x['日付'];(byDay[k]||(byDay[k]={rid:x['利用者ID'],name:nm[x['利用者ID']]||x['氏名'],date:x['日付'],m:{}})).m[x['食事']]=x;});
   const rows=Object.values(byDay).sort((a,b)=>String(room[a.rid]).localeCompare(String(room[b.rid]),'ja',{numeric:true})||a.name.localeCompare(b.name,'ja')||a.date.localeCompare(b.date));
-  const tot={}; rows.forEach(r=>{const t=tot[r.rid]||(tot[r.rid]={name:r.name,h:0,g:0});ML.forEach(k=>{const x=r.m[k];if(x&&x['配膳']==='あり')t.h++;if(x&&x['下膳']==='あり')t.g++;});});
-  const head=['日付','曜日','部屋','氏名'].concat(...ML.map(k=>[k+'配膳',k+'下膳']),['配膳回数','下膳回数']);
-  const lines=[head.map(q).join(',')].concat(rows.map(r=>{const c=ML.map(k=>r.m[k]);const h=c.filter(x=>x&&x['配膳']==='あり').length,g=c.filter(x=>x&&x['下膳']==='あり').length;return [r.date,wdJ(r.date),room[r.rid],r.name].concat(...c.map(x=>[x&&x['配膳']==='あり'?'○':'',x&&x['下膳']==='あり'?'○':''])).concat([h,g]).map(q).join(',');}));
-  lines.push('',['【'+ym+' の合計】','','部屋','氏名','配膳回数','下膳回数'].map(q).join(','));
-  Object.entries(tot).sort((a,b)=>String(room[a[0]]).localeCompare(String(room[b[0]]),'ja',{numeric:true})).forEach(([rid,t])=>lines.push(['','',room[rid],t.name,t.h,t.g].map(q).join(',')));
+  const tot={}; rows.forEach(r=>{const t=tot[r.rid]||(tot[r.rid]={name:r.name,h:0});ML.forEach(k=>{const x=r.m[k];if(x&&(x['配膳']==='あり'||x['下膳']==='あり'))t.h++;});});
+  const on=x=>!!x&&(x['配膳']==='あり'||x['下膳']==='あり');
+  const head=['日付','曜日','部屋','氏名'].concat(ML,['配膳・下膳回数']);
+  const lines=[head.map(q).join(',')].concat(rows.map(r=>{const c=ML.map(k=>r.m[k]);return [r.date,wdJ(r.date),room[r.rid],r.name].concat(c.map(x=>on(x)?'○':'')).concat([c.filter(on).length]).map(q).join(',');}));
+  lines.push('',['【'+ym+' の合計】','','部屋','氏名','配膳・下膳回数'].map(q).join(','));
+  Object.entries(tot).sort((a,b)=>String(room[a[0]]).localeCompare(String(room[b[0]]),'ja',{numeric:true})).forEach(([rid,t])=>lines.push(['','',room[rid],t.name,t.h].map(q).join(',')));
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')+'\r\n'],{type:'text/csv'})); a.download=`配膳下膳_${ym}.csv`; document.body.appendChild(a); a.click(); a.remove();
   toast(`${ym} の配膳・下膳を出しました（${Object.keys(tot).length}名・${rows.length}日分）`); }catch(e){ toast('出せませんでした: '+e.message); } finally{ busy(false); } }
 // ハウス全体の記録（オンコールなど）を押すと、その日の個人日誌へ
@@ -471,7 +472,7 @@ $('#saveMeal').onclick=async()=>{
   const staff=$('#staff').value; if(!staff) return ng('記入者を選んでください（下の「記入者」）',$('#staff')); LSs('hc_staff',staff); LSs('hc_staff_at',String(Date.now())); msg.textContent='';
   const rec={id:(mealOf(r.id,D.meal)||{}).id||'', '日付':D.date,'食事':D.meal,'利用者ID':r.id,'氏名':r['氏名'],'主食':staple,'副食':noMeal?staple:side,'汁物':noMeal?'':segVal('soup'),'服薬':segVal('med'),'服薬時刻':(()=>{ const v=segVal('med'); if(v!=='済') return ''; const cur=mealOf(r.id,D.meal); if(cur&&cur['服薬']==='済'&&cur['服薬時刻']) return cur['服薬時刻']; const n=new Date(); return pad(n.getHours())+':'+pad(n.getMinutes()); })(),'水分':segVal('water'),'食事形態':$('#form').value,
     '症状':$$('#sym button.on').map(b=>b.dataset.v).join(','),'備考':$('#memo').value.trim(),'記入者':staff,
-    '配膳':$('#serve [data-k="配膳"]').classList.contains('on')?'あり':'','下膳':$('#serve [data-k="下膳"]').classList.contains('on')?'あり':''};
+    '配膳':$('#serve [data-k="配膳"]').classList.contains('on')?'あり':'','下膳':$('#serve [data-k="配膳"]').classList.contains('on')?'あり':''}; // 配膳・下膳はセット（ボタン1つ）
   try{ busy(true); $('#saveMeal').disabled=true; $('#saveMeal').textContent='保存中…'; const saved=await api('saveMeal',{record:rec}); D.day.meals=D.day.meals.filter(m=>!(m['利用者ID']===r.id&&m['食事']===D.meal)); D.day.meals.push(saved); toast(`${r['氏名']} ${D.meal} 保存しました`); msg.style.color='#1f7a3a'; msg.textContent=`✓ ${D.meal} 保存しました`; setTimeout(()=>{ msg.textContent=''; msg.style.color='#c0392b'; },3000); renderEntry(); renderToday(); }
   catch(e){ msg.textContent='⚠ 保存できませんでした: '+e.message; toast('保存失敗: '+e.message); } finally{ busy(false); $('#saveMeal').disabled=false; $('#saveMeal').textContent='保存'; }
 };
