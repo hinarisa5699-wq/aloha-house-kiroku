@@ -283,6 +283,7 @@ body.ro::before{content:"閲覧のみ（編集はできません）";display:blo
     <div class="lockmsg">↑ 先に「記入者」を選んでください</div>
     <div class="lockable">
     <div class="mealtabs" id="mealTabs"></div>
+    <div class="field"><div class="lb"><span><b>配膳・下膳</b>（したら押す・請求に使います）</span></div><div class="seg" id="serve"><button type="button" data-k="配膳">配膳あり</button><button type="button" data-k="下膳">下膳あり</button></div></div>
     <div class="field"><div class="lb"><span><b>主食（ごはん類）</b> <b style="color:#c0392b">食べた量</b>（割）※残した量ではありません</span><span id="stapleV"></span></div><div class="seg" id="staple"></div></div>
     <div class="field"><div class="lb"><span><b>副食（おかず）</b> <b style="color:#c0392b">食べた量</b>（割）</span><span id="sideV"></span></div><div class="seg" id="side"></div></div>
     <div class="field"><div class="lb"><span>汁物 <b style="color:#c0392b">食べた量</b>（割）※なければ空欄</span><span id="soupV"></span></div><div class="seg" id="soup"></div></div>
@@ -387,7 +388,7 @@ body.ro::before{content:"閲覧のみ（編集はできません）";display:blo
     <div class="row" style="flex-wrap:wrap;align-items:center">
       <select id="dMode" style="flex:1 1 200px"><option value="gyomu">業務日誌（この日のまとめ・毎日印刷）</option><option value="day">この日の全員（個人日誌の入力）</option><option value="month">1人の1か月</option></select>
       <select id="dRes" class="hide" style="flex:1 1 160px"></select>
-      <button class="btn" id="dPrint" style="flex:none">印刷</button><button class="btn" id="ocCsvBtn" style="flex:none" title="この月のオンコール当番（担当・件数・内容）を給与計算アプリ用に出します">オンコールCSV（給与計算用）</button>
+      <button class="btn" id="dPrint" style="flex:none">印刷</button><button class="btn" id="ocCsvBtn" style="flex:none" title="この月のオンコール当番（担当・件数・内容）を給与計算アプリ用に出します">オンコールCSV（給与計算用）</button><button class="btn" id="serveCsvBtn" style="flex:none" title="この月の配膳・下膳を入居者ごとに出します（請求書づくり用）">配膳・下膳CSV（請求用）</button>
     </div>
     <div class="muted" style="margin-top:4px">職員LINEを取り込むと、投稿がAIで入居者ごとの日誌文に整えられてここに入ります（出所：LINE）。手で書き足すこともできます。日付は上の「‹ ›」で動かします。</div>
   </div>
@@ -503,10 +504,10 @@ body.ro::before{content:"閲覧のみ（編集はできません）";display:blo
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mv20261126a"></script>
-<script src="kiroku.js?v=mv20261126a"></script>
-<script src="app.js?v=mv20261126a"></script>
-<script src="base.js?v=mv20261126a"></script>
+<script src="parsers.js?v=mv20261127a"></script>
+<script src="kiroku.js?v=mv20261127a"></script>
+<script src="app.js?v=mv20261127a"></script>
+<script src="base.js?v=mv20261127a"></script>
 <script src="money.js?v=r8118"></script>
 </body>
 </html>

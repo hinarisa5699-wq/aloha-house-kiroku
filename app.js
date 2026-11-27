@@ -305,6 +305,20 @@ async function ocCsv(ym){ const [y,m]=ym.split('-').map(Number); const nx=`${m==
   const csv='﻿'+['当番日,曜日,担当,呼び出し件数,内容,もと'].concat(rows.map(x=>[x.duty,wdJ(x.duty),x.staff,Math.max(x.count,x.calls.length),x.calls.join(' ／ '),x.src].map(q).join(','))).join('\r\n')+'\r\n';
   return {csv,rows}; }
 async function ocCsvDownload(){ const ym=(D.date||ymdOf(new Date())).slice(0,7); busy(true); try{ const {csv,rows}=await ocCsv(ym); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`オンコール当番_${ym}.csv`; document.body.appendChild(a); a.click(); a.remove(); const noStaff=rows.filter(x=>!x.staff).length; toast(`${ym} のオンコール当番 ${rows.length}日分を出しました`+(noStaff?`（担当が空の日 ${noStaff}日）`:'')); }catch(e){ toast('出せませんでした: '+e.message); } finally{ busy(false); } }
+// 配膳・下膳の1か月CSV（請求書づくり用）2026/11/27
+async function serveCsvDownload(){ const ym=(D.date||ymdOf(new Date())).slice(0,7); busy(true); try{
+  const m=await api('month',{ym}); const meals=(m.meals||[]).filter(x=>x['配膳']==='あり'||x['下膳']==='あり');
+  const room={},nm={}; (D.allResidents||D.residents||[]).forEach(r=>{room[r.id]=r['部屋']||'';nm[r.id]=r['氏名'];});
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"'; const ML=['朝食','昼食','おやつ','夕食'];
+  const byDay={}; meals.forEach(x=>{const k=x['利用者ID']+'|'+x['日付'];(byDay[k]||(byDay[k]={rid:x['利用者ID'],name:nm[x['利用者ID']]||x['氏名'],date:x['日付'],m:{}})).m[x['食事']]=x;});
+  const rows=Object.values(byDay).sort((a,b)=>String(room[a.rid]).localeCompare(String(room[b.rid]),'ja',{numeric:true})||a.name.localeCompare(b.name,'ja')||a.date.localeCompare(b.date));
+  const tot={}; rows.forEach(r=>{const t=tot[r.rid]||(tot[r.rid]={name:r.name,h:0,g:0});ML.forEach(k=>{const x=r.m[k];if(x&&x['配膳']==='あり')t.h++;if(x&&x['下膳']==='あり')t.g++;});});
+  const head=['日付','曜日','部屋','氏名'].concat(...ML.map(k=>[k+'配膳',k+'下膳']),['配膳回数','下膳回数']);
+  const lines=[head.map(q).join(',')].concat(rows.map(r=>{const c=ML.map(k=>r.m[k]);const h=c.filter(x=>x&&x['配膳']==='あり').length,g=c.filter(x=>x&&x['下膳']==='あり').length;return [r.date,wdJ(r.date),room[r.rid],r.name].concat(...c.map(x=>[x&&x['配膳']==='あり'?'○':'',x&&x['下膳']==='あり'?'○':''])).concat([h,g]).map(q).join(',');}));
+  lines.push('',['【'+ym+' の合計】','','部屋','氏名','配膳回数','下膳回数'].map(q).join(','));
+  Object.entries(tot).sort((a,b)=>String(room[a[0]]).localeCompare(String(room[b[0]]),'ja',{numeric:true})).forEach(([rid,t])=>lines.push(['','',room[rid],t.name,t.h,t.g].map(q).join(',')));
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')+'\r\n'],{type:'text/csv'})); a.download=`配膳下膳_${ym}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  toast(`${ym} の配膳・下膳を出しました（${Object.keys(tot).length}名・${rows.length}日分）`); }catch(e){ toast('出せませんでした: '+e.message); } finally{ busy(false); } }
 // ハウス全体の記録（オンコールなど）を押すと、その日の個人日誌へ
 function hxBind(sel){ $$(sel+' .hx-write').forEach(b=>b.onclick=async e=>{ e.stopPropagation(); const x=houseExt().find(v=>String(v.id||'')===b.dataset.hx); if(!x) return; b.disabled=true; let l=[]; try{ l=await hxLinked(x); if(!l.length&&hxIsOC(x)&&!RO()&&await hxPickLine(x)) l=await hxLinked(x); }catch(er){} b.disabled=false; if(l.length===1) return hxJump(l[0]); if(l.length) return hxPick(x,l); openHX(x); }); }
 // ハウス全体の記録に対応する個人日誌（この記録から書いたもの＋オンコールは前日昼〜当日のオンコール記録）2026/11/22
@@ -413,6 +427,7 @@ function renderEntry(){
   segSet('staple',m['主食']||''); segSet('side',m['副食']||''); segSet('soup',m['汁物']||''); segSet('med',m['服薬']||''); $('#medV').textContent=m['服薬']==='済'?('✓ '+(m['服薬時刻']||'')+(m['記入者']?' '+m['記入者']:'')):''; segSet('water',m['水分']||'');
   $('#form').value=m['食事形態']||r['食事形態']||D.forms[0]; if(!$('#form').value) $('#form').selectedIndex=0;
   const syms=(m['症状']||'').split(',').filter(Boolean); $$('#sym button').forEach(b=>b.classList.toggle('on',syms.includes(b.dataset.v)));
+  $$('#serve button').forEach(b=>b.classList.toggle('on',m[b.dataset.k]==='あり')); // 配膳・下膳 2026/11/27
   $('#memo').value=m['備考']||''; $('#staffPrev').textContent=m['記入者']?`（この食事の前回の記入者：${m['記入者']}）`:''; ['staple','side','soup'].forEach(pkSync); staffLock(); renderBowel();
   $('#delMeal').style.display=m.id?'':'none';
   renderInfo();
@@ -455,7 +470,8 @@ $('#saveMeal').onclick=async()=>{
   if(!noMeal&&!side) return ng('副食の量を選んでください',$('#side'));
   const staff=$('#staff').value; if(!staff) return ng('記入者を選んでください（下の「記入者」）',$('#staff')); LSs('hc_staff',staff); LSs('hc_staff_at',String(Date.now())); msg.textContent='';
   const rec={id:(mealOf(r.id,D.meal)||{}).id||'', '日付':D.date,'食事':D.meal,'利用者ID':r.id,'氏名':r['氏名'],'主食':staple,'副食':noMeal?staple:side,'汁物':noMeal?'':segVal('soup'),'服薬':segVal('med'),'服薬時刻':(()=>{ const v=segVal('med'); if(v!=='済') return ''; const cur=mealOf(r.id,D.meal); if(cur&&cur['服薬']==='済'&&cur['服薬時刻']) return cur['服薬時刻']; const n=new Date(); return pad(n.getHours())+':'+pad(n.getMinutes()); })(),'水分':segVal('water'),'食事形態':$('#form').value,
-    '症状':$$('#sym button.on').map(b=>b.dataset.v).join(','),'備考':$('#memo').value.trim(),'記入者':staff};
+    '症状':$$('#sym button.on').map(b=>b.dataset.v).join(','),'備考':$('#memo').value.trim(),'記入者':staff,
+    '配膳':$('#serve [data-k="配膳"]').classList.contains('on')?'あり':'','下膳':$('#serve [data-k="下膳"]').classList.contains('on')?'あり':''};
   try{ busy(true); $('#saveMeal').disabled=true; $('#saveMeal').textContent='保存中…'; const saved=await api('saveMeal',{record:rec}); D.day.meals=D.day.meals.filter(m=>!(m['利用者ID']===r.id&&m['食事']===D.meal)); D.day.meals.push(saved); toast(`${r['氏名']} ${D.meal} 保存しました`); msg.style.color='#1f7a3a'; msg.textContent=`✓ ${D.meal} 保存しました`; setTimeout(()=>{ msg.textContent=''; msg.style.color='#c0392b'; },3000); renderEntry(); renderToday(); }
   catch(e){ msg.textContent='⚠ 保存できませんでした: '+e.message; toast('保存失敗: '+e.message); } finally{ busy(false); $('#saveMeal').disabled=false; $('#saveMeal').textContent='保存'; }
 };
@@ -901,7 +917,8 @@ document.addEventListener('drop',e=>{ const d=e.target.closest&&e.target.closest
 boot();
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 
-if($('#ocBtn')) $('#ocBtn').onclick=openOC; if($('#ocCsvBtn')) $('#ocCsvBtn').onclick=ocCsvDownload;
+if($('#ocBtn')) $('#ocBtn').onclick=openOC; if($('#ocCsvBtn')) $('#ocCsvBtn').onclick=ocCsvDownload; if($('#serveCsvBtn')) $('#serveCsvBtn').onclick=serveCsvDownload;
+$$('#serve button').forEach(b=>b.onclick=()=>b.classList.toggle('on'));
 // 新しい版が出たら知らせる（開きっぱなしの端末が古い画面のまま動かないように）2026/11/22
 (function(){ const mine=((document.querySelector('script[src*="app.js?v="]')||{}).src||'').split('v=')[1]||'';
   const check=async()=>{ try{ const t=await (await fetch('index.html?x='+Date.now(),{cache:'no-store'})).text(); const m=t.match(/app\.js\?v=([\w]+)/); if(!m||!mine||m[1]===mine||document.getElementById('newVer')) return;
