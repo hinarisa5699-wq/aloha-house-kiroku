@@ -218,6 +218,8 @@ table.kv th{background:var(--head-bg)}
 .bd.ok{background:var(--ok-bg);color:var(--ok)} .bd.warn{background:var(--warn-bg);color:var(--warn)} .bd.bad{background:var(--bad-bg);color:var(--bad)}
 .mcbtn{flex:none;border:2px solid var(--pri);background:#fff;color:var(--pri-dk,#b34a12);border-radius:12px;padding:4px 6px;font-size:20px;line-height:1;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:2px}
 .mcbtn span{font-size:9.5px;line-height:1.1}
+/* スマホ：食事の札（朝・昼・夕）は名前の下の段に並べ、名前やモーニングコールのボタンをつぶさない 2026/11/27 */
+@media(max-width:799px){.res{flex-wrap:wrap;row-gap:6px}.res .chips{order:3;flex:1 1 100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.res .chip{min-width:0;white-space:normal;overflow-wrap:anywhere}.res .mcbtn{order:2}}
 .seg.pick{position:relative}
 .seg.pick .pk{flex:2;background:#fffaf2}
 .seg.pick .pk.on{background:var(--pri);color:#fff;border-color:var(--pri)}
@@ -504,10 +506,10 @@ body.ro::before{content:"閲覧のみ（編集はできません）";display:blo
   <button data-p="set"><span class="ic">⚙</span>設定</button>
 </nav>
 <div class="toast" id="toast"></div>
-<script src="parsers.js?v=mv20261127b"></script>
-<script src="kiroku.js?v=mv20261127b"></script>
-<script src="app.js?v=mv20261127b"></script>
-<script src="base.js?v=mv20261127b"></script>
+<script src="parsers.js?v=mv20261127c"></script>
+<script src="kiroku.js?v=mv20261127c"></script>
+<script src="app.js?v=mv20261127c"></script>
+<script src="base.js?v=mv20261127c"></script>
 <script src="money.js?v=r8118"></script>
 </body>
 </html>
